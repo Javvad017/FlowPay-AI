@@ -22,6 +22,7 @@ type Activity = {
   action: string;
   amount: number;
   status: string;
+  order_id?: string;
 };
 
 export default function Home() {
@@ -30,11 +31,15 @@ export default function Home() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [activities, setActivities] = useState<Activity[]>([]);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState(false);
 
   useEffect(() => {
-    async function loadDashboard() {
+    async function loadDashboard(isRefresh = false) {
       try {
+        if (isRefresh) {
+          setRefreshing(true);
+        }
         const [statsResponse, activityResponse] = await Promise.all([
           fetch("http://localhost:8000/api/dashboard/stats"),
           fetch("http://localhost:8000/api/dashboard/activity"),
@@ -55,6 +60,7 @@ export default function Home() {
         setError(true);
       } finally {
         setLoading(false);
+        setRefreshing(false);
       }
     }
 
@@ -146,31 +152,24 @@ export default function Home() {
             {/* Stats */}
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
               <StatCard
-                label="AI-assisted revenue"
-                value={`₹${(stats?.ai_assisted_revenue ?? 0).toLocaleString(
-                  "en-IN"
-                )}`}
-                change={`+${stats?.ai_assisted_revenue_change ?? 0}%`}
+                label="Paid revenue"
+                value={`₹${(stats?.ai_assisted_revenue ?? 0).toLocaleString("en-IN")}`}
+                change="Live"
               />
-
               <StatCard
-                label="AI conversations"
-                value={(stats?.conversations ?? 0).toLocaleString("en-IN")}
-                change={`+${stats?.conversations_change ?? 0}%`}
+                label="Paid orders"
+                value={(stats?.conversions ?? 0).toLocaleString("en-IN")}
+                change="Confirmed"
               />
-
               <StatCard
-                label="High-intent customers"
-                value={(
-                  stats?.high_intent_customers ?? 0
-                ).toLocaleString("en-IN")}
-                change={`+${stats?.high_intent_customers_change ?? 0}%`}
+                label="Pending orders"
+                value={(stats?.recovered_carts ?? 0).toLocaleString("en-IN")}
+                change="Awaiting payment"
               />
-
               <StatCard
                 label="Conversion rate"
                 value={`${stats?.conversion_rate ?? 0}%`}
-                change={`+${stats?.conversion_rate_change ?? 0}%`}
+                change="Live checkout"
               />
             </div>
 
@@ -181,7 +180,7 @@ export default function Home() {
                 <div className="flex items-center justify-between">
                   <div>
                     <p className="text-sm text-gray-500">
-                      Agent activity
+                      Payment activity
                     </p>
 
                     <h3 className="mt-1 text-lg font-medium">
@@ -229,12 +228,11 @@ export default function Home() {
                   </div>
 
                   <p className="mt-3 text-sm leading-6 text-gray-500">
-                    {stats?.high_intent_customers ?? 0} high-intent
-                    customers identified.{" "}
-                    {stats?.recommendations ?? 0} personalized
-                    recommendations generated.{" "}
-                    {stats?.conversions ?? 0} successful conversions
-                    recorded.
+                    {stats?.conversions ?? 0} successful payment
+                    {(stats?.conversions ?? 0) === 1 ? "" : "s"} confirmed.{" "}
+                    {stats?.recommendations ?? 0} product
+                    {(stats?.recommendations ?? 0) === 1 ? "" : "s"} sold
+                    through confirmed orders.
                   </p>
                 </div>
               </div>
@@ -242,49 +240,33 @@ export default function Home() {
               {/* Revenue */}
               <div className="rounded-2xl border border-white/10 bg-white/[0.025] p-6">
                 <p className="text-sm text-gray-500">
-                  Revenue engine
+                  Payment engine
                 </p>
 
                 <h3 className="mt-2 text-3xl font-semibold">
-                  ₹
-                  {(
-                    (stats?.ai_assisted_revenue ?? 0) / 1000
-                  ).toFixed(1)}
-                  K
+                  ₹{(stats?.ai_assisted_revenue ?? 0).toLocaleString("en-IN")}
                 </h3>
 
                 <p className="mt-2 text-xs text-emerald-400">
-                  +{stats?.ai_assisted_revenue_change ?? 0}% from
-                  AI-assisted commerce
+                  Confirmed Razorpay payments
                 </p>
 
                 <div className="mt-8 space-y-4">
                   <Metric
-                    label="Recommendations"
-                    value={(
-                      stats?.recommendations ?? 0
-                    ).toLocaleString("en-IN")}
+                    label="Paid orders"
+                    value={(stats?.conversions ?? 0).toLocaleString("en-IN")}
                   />
-
                   <Metric
-                    label="Conversions"
-                    value={(
-                      stats?.conversions ?? 0
-                    ).toLocaleString("en-IN")}
+                    label="Pending orders"
+                    value={(stats?.recovered_carts ?? 0).toLocaleString("en-IN")}
                   />
-
                   <Metric
-                    label="Recovered carts"
-                    value={(
-                      stats?.recovered_carts ?? 0
-                    ).toLocaleString("en-IN")}
+                    label="Items sold"
+                    value={(stats?.recommendations ?? 0).toLocaleString("en-IN")}
                   />
-
                   <Metric
-                    label="Upsell revenue"
-                    value={`₹${(
-                      stats?.upsell_revenue ?? 0
-                    ).toLocaleString("en-IN")}`}
+                    label="Average order value"
+                    value={`₹${(stats?.upsell_revenue ?? 0).toLocaleString("en-IN")}`}
                   />
                 </div>
               </div>
@@ -295,16 +277,21 @@ export default function Home() {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-sm text-gray-500">
-                    Recent activity
+                    Recent transactions
                   </p>
 
                   <h3 className="mt-1 text-lg font-medium">
-                    Agent transactions
+                    Razorpay payment activity
                   </h3>
                 </div>
 
-                <button className="text-xs text-cyan-400 transition hover:text-cyan-300">
-                  View all
+                <button
+                  type="button"
+                  onClick={() => loadDashboard(true)}
+                  disabled={refreshing}
+                  className="rounded-lg border border-cyan-400/20 bg-cyan-400/5 px-3 py-2 text-xs text-cyan-300 transition hover:bg-cyan-400/10 disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  {refreshing ? "Refreshing..." : "Refresh"}
                 </button>
               </div>
 
@@ -313,11 +300,11 @@ export default function Home() {
                   <thead>
                     <tr className="border-b border-white/10 text-xs text-gray-500">
                       <th className="pb-4 font-normal">
-                        Customer
+                        Order
                       </th>
 
                       <th className="pb-4 font-normal">
-                        Action
+                        Items
                       </th>
 
                       <th className="pb-4 font-normal">
@@ -338,6 +325,11 @@ export default function Home() {
                       >
                         <td className="py-4 text-gray-300">
                           {activity.customer}
+                          {activity.order_id && (
+                            <p className="mt-1 text-[10px] text-gray-600">
+                              {activity.order_id}
+                            </p>
+                          )}
                         </td>
 
                         <td className="py-4 text-gray-500">
@@ -365,7 +357,7 @@ export default function Home() {
                           colSpan={4}
                           className="py-10 text-center text-sm text-gray-600"
                         >
-                          No agent activity yet.
+                          No checkout transactions yet.
                         </td>
                       </tr>
                     )}

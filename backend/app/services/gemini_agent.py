@@ -1,12 +1,13 @@
 import json
 import os
+import re
 from typing import Any
 
 from dotenv import load_dotenv
 from google import genai
 
 from app.services.catalog_service import search_catalog
-
+from google.genai import errors
 
 
 load_dotenv()
@@ -25,7 +26,6 @@ if not api_key:
 
 client = genai.Client(api_key=api_key)
 
-
 MODEL = "gemini-3.6-flash"
 
 
@@ -37,11 +37,8 @@ SEARCH_PRODUCTS_TOOL = {
     "type": "function",
     "name": "search_products",
     "description": (
-        "Search the merchant product catalog. "
-        "Use this tool whenever the customer is asking "
-        "for products or recommendations. "
-        "Respect product type, budget, category, use case "
-        "and customer preferences."
+        "Search the merchant product catalog using "
+        "customer requirements."
     ),
     "parameters": {
         "type": "object",
@@ -49,8 +46,8 @@ SEARCH_PRODUCTS_TOOL = {
             "product_type": {
                 "type": ["string", "null"],
                 "description": (
-                    "The exact type of product requested, "
-                    "such as earbuds, laptop, smartwatch."
+                    "Exact product type requested, "
+                    "such as earbuds, laptop or smartwatch."
                 ),
             },
             "category": {
@@ -63,15 +60,13 @@ SEARCH_PRODUCTS_TOOL = {
             "use_case": {
                 "type": ["string", "null"],
                 "description": (
-                    "How the customer intends to use "
-                    "the product, such as gym, gaming "
-                    "or programming."
+                    "How the customer will use the product."
                 ),
             },
             "max_price": {
                 "type": ["integer", "null"],
                 "description": (
-                    "Maximum customer budget in Indian rupees."
+                    "Maximum customer budget in INR."
                 ),
             },
             "preferences": {
@@ -102,61 +97,151 @@ SEARCH_PRODUCTS_TOOL = {
 SYSTEM_INSTRUCTIONS = """
 You are FlowPay Commerce Agent.
 
-You are an autonomous commerce assistant for a merchant.
+You are an autonomous commerce assistant.
 
-Your responsibilities:
+Your job is to understand customer requests,
+search the merchant catalog and provide useful
+product recommendations.
 
-1. Understand natural-language customer requests.
-2. Identify what product the customer wants.
-3. Identify budget constraints.
-4. Identify use cases and preferences.
-5. Call search_products when product discovery is required.
-6. Never invent products.
-7. Never invent prices or inventory.
-8. Only recommend products returned by search_products.
-9. Respect the customer's maximum budget.
-10. Prefer exact product-type matches over loosely related products.
-11. Give concise, useful recommendations.
-12. If no suitable product exists, clearly say so.
+RULES:
 
-IMPORTANT:
+1. Use search_products when the customer is looking
+   for products or recommendations.
 
-The merchant catalog is the source of truth.
+2. The merchant catalog is the ONLY source of truth
+   for product information.
 
-Do not claim a product exists unless it appears in
-the search_products result.
+3. Never invent:
+   - products
+   - prices
+   - inventory
+   - features
+   - specifications
+   - discounts
+   - delivery information
+   - warranties
+   - payment status
 
-Do not claim a payment was completed.
+4. Only mention product features that appear in the
+   search_products result.
 
-Payment functionality will be handled by a separate
-payment tool later.
+5. Respect the customer's maximum budget.
+
+6. Prefer exact product-type matches.
+
+7. If there are no suitable products, say so clearly.
+
+8. Keep the final recommendation concise and useful.
+
+9. Payment and checkout are separate capabilities.
+   Never claim a payment or order was completed.
+
+10. Do not invent attributes such as "secure fit",
+    "sweat proof", "premium build", etc. unless the
+    catalog explicitly contains that information.
 """
 
 
 # ==========================================
-# Run Commerce Agent
+# Helpers
+# ==========================================
+
+def _extract_budget(text: str) -> int | None:
+    """
+    Fallback budget extraction.
+
+    This is NOT used to replace Gemini reasoning.
+    It only protects the API response when Gemini
+    doesn't expose the budget separately.
+    """
+
+    patterns = [
+        r"₹\s?([\d,]+)",
+        r"rs\.?\s?([\d,]+)",
+        r"rupees?\s?([\d,]+)",
+        r"under\s?₹?\s?([\d,]+)",
+        r"below\s?₹?\s?([\d,]+)",
+        r"within\s?₹?\s?([\d,]+)",
+    ]
+
+    text_lower = text.lower()
+
+    for pattern in patterns:
+        match = re.search(
+            pattern,
+            text_lower,
+        )
+
+        if match:
+            try:
+                return int(
+                    match.group(1).replace(
+                        ",",
+                        "",
+                    )
+                )
+            except ValueError:
+                pass
+
+    return None
+
+
+def _clean_products(
+    products: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    """
+    Remove duplicate products.
+    """
+
+    unique_products: dict[str, dict[str, Any]] = {}
+
+    for product in products:
+
+        product_id = product.get("id")
+
+        if product_id:
+            unique_products[product_id] = product
+
+    return list(
+        unique_products.values()
+    )[:3]
+
+
+# ==========================================
+# Main Gemini Commerce Agent
 # ==========================================
 
 def run_gemini_agent(
     customer_message: str,
 ) -> dict[str, Any]:
 
-    # --------------------------------------
-    # First Gemini interaction
-    # --------------------------------------
+    try:
+        interaction = client.interactions.create(
+            model=MODEL,
+            input=customer_message,
+            tools=[SEARCH_PRODUCTS_TOOL],
+        )
 
-    interaction = client.interactions.create(
-        model=MODEL,
-        input=customer_message,
-        tools=[SEARCH_PRODUCTS_TOOL],
-    )
+    except Exception as exc:
+        print(f"Gemini request failed: {exc}")
+
+        return {
+            "agent": "FlowPay Commerce Agent",
+            "message": (
+                "The AI service is temporarily unavailable "
+                "or rate-limited. Please try again shortly."
+            ),
+            "tool_called": None,
+            "products_found": 0,
+            "recommendations": [],
+        }
 
     function_results = []
 
-    recommendations = []
+    recommendations: list[dict[str, Any]] = []
 
     # --------------------------------------
-    # Process Gemini tool calls
+    # Extract tool calls
     # --------------------------------------
 
     for step in interaction.steps:
@@ -170,15 +255,23 @@ def run_gemini_agent(
         arguments = step.arguments
 
         print(
-            "\nGemini tool call:"
+            "\n=============================="
         )
-
         print(
-            f"search_products({arguments})"
+            "Gemini tool call:"
+        )
+        print(
+            "search_products"
+        )
+        print(
+            arguments
+        )
+        print(
+            "=============================="
         )
 
         # ----------------------------------
-        # Execute our REAL catalog tool
+        # Search real merchant catalog
         # ----------------------------------
 
         products = search_catalog(
@@ -202,7 +295,7 @@ def run_gemini_agent(
         )
 
         # ----------------------------------
-        # Send catalog result back to Gemini
+        # Return catalog data to Gemini
         # ----------------------------------
 
         function_results.append(
@@ -223,56 +316,138 @@ def run_gemini_agent(
             }
         )
 
-    # --------------------------------------
-    # If Gemini did not call a tool
-    # --------------------------------------
+    # ======================================
+    # No tool call
+    # ======================================
 
     if not function_results:
 
         return {
             "agent": "FlowPay Commerce Agent",
             "message": interaction.output_text,
+            "intent": "general_conversation",
             "tool_called": None,
+            "query": customer_message,
+            "product_type": None,
+            "category": None,
+            "use_case": None,
+            "max_price": _extract_budget(
+                customer_message
+            ),
             "products_found": 0,
             "recommendations": [],
         }
 
+    # ======================================
+    # Get actual tool arguments
+    # ======================================
+
+    first_tool_step = next(
+        step
+        for step in interaction.steps
+        if (
+            step.type == "function_call"
+            and step.name == "search_products"
+        )
+    )
+
+    tool_arguments = first_tool_step.arguments
+
+    product_type = tool_arguments.get(
+        "product_type"
+    )
+
+    category = tool_arguments.get(
+        "category"
+    )
+
+    use_case = tool_arguments.get(
+        "use_case"
+    )
+
+    max_price = tool_arguments.get(
+        "max_price"
+    )
+
+    preferences = tool_arguments.get(
+        "preferences",
+        [],
+    )
+
     # --------------------------------------
+    # Fallback budget
+    # --------------------------------------
+
+    if max_price is None:
+        max_price = _extract_budget(
+            customer_message
+        )
+
+    # ======================================
+    # Build query for frontend
+    # ======================================
+
+    query_parts = []
+
+    if product_type:
+        query_parts.append(
+            str(product_type)
+        )
+
+    if use_case:
+        query_parts.append(
+            str(use_case)
+        )
+
+    query = " ".join(
+        query_parts
+    ).strip()
+
+    # ======================================
     # Second Gemini interaction
-    # --------------------------------------
+    # ======================================
 
     final_interaction = client.interactions.create(
         model=MODEL,
         previous_interaction_id=interaction.id,
         input=function_results,
-        tools=[SEARCH_PRODUCTS_TOOL],
+        tools=[
+            SEARCH_PRODUCTS_TOOL
+        ],
     )
 
-    # --------------------------------------
-    # Remove duplicates
-    # --------------------------------------
+    # ======================================
+    # Clean recommendation list
+    # ======================================
 
-    unique_products = {}
+    final_products = _clean_products(
+        recommendations
+    )
 
-    for product in recommendations:
-        unique_products[
-            product["id"]
-        ] = product
-
-    final_products = list(
-        unique_products.values()
-    )[:3]
-
-    # --------------------------------------
+    # ======================================
     # Final response
-    # --------------------------------------
+    # ======================================
 
     return {
         "agent": "FlowPay Commerce Agent",
 
         "message": final_interaction.output_text,
 
+        "intent": "product_discovery",
+
         "tool_called": "search_products",
+
+        "query": query,
+
+        "product_type": product_type,
+
+        "category": category,
+
+        "use_case": use_case,
+
+        "max_price": max_price,
+
+        "preferences": preferences,
 
         "products_found": len(final_products),
 

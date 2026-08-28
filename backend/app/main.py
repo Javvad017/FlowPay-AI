@@ -4,6 +4,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.dashboard import router as dashboard_router
 from app.api.catalog import router as catalog_router
 from app.api.agent import router as agent_router
+from app.api.cart import router as cart_router
+from app.api.checkout import router as checkout_router
 
 
 
@@ -29,6 +31,8 @@ app.add_middleware(
 app.include_router(dashboard_router)
 app.include_router(catalog_router)
 app.include_router(agent_router)
+app.include_router(cart_router)
+app.include_router(checkout_router)
 
 
 @app.get("/")
