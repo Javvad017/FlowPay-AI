@@ -6,6 +6,9 @@ from app.api.catalog import router as catalog_router
 from app.api.agent import router as agent_router
 from app.api.cart import router as cart_router
 from app.api.checkout import router as checkout_router
+from app.api.growth import router as growth_router
+from app.services.database import init_database
+from app.api.demo import router as demo_router
 
 
 
@@ -15,6 +18,7 @@ app = FastAPI(
     description="Autonomous Commerce Agent for Merchant Growth & Secure Payments",
     version="0.1.0",
 )
+init_database()
 
 
 app.add_middleware(
@@ -33,6 +37,8 @@ app.include_router(catalog_router)
 app.include_router(agent_router)
 app.include_router(cart_router)
 app.include_router(checkout_router)
+app.include_router(growth_router)
+app.include_router(demo_router)
 
 
 @app.get("/")

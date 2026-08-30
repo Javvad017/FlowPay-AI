@@ -57,6 +57,19 @@ type CheckoutResponse = {
   currency: string;
   key_id: string;
   items: CartItem[];
+  attribution_source?: string;
+};
+
+type AttributionSource =
+  | "direct_checkout"
+  | "ai_recommendation"
+  | "cross_sell"
+  | "recovery";
+
+type GrowthRecommendation = {
+  product: Product;
+  score: number;
+  reason: string;
 };
 
 type RazorpayPaymentResponse = {
@@ -100,6 +113,13 @@ export default function AgentPage() {
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [paymentStatus, setPaymentStatus] = useState("");
 
+  const [attributionSource, setAttributionSource] =
+    useState<AttributionSource>("direct_checkout");
+
+  const [crossSellRecommendations, setCrossSellRecommendations] =
+    useState<GrowthRecommendation[]>([]);
+  const [crossSellLoading, setCrossSellLoading] = useState(false);
+
 
   /* ================================================= */
   /* EXAMPLE PROMPTS                                  */
@@ -140,6 +160,10 @@ export default function AgentPage() {
   useEffect(() => {
     loadCart();
   }, []);
+
+  useEffect(() => {
+    loadCrossSell();
+  }, [cart.items.length, cart.subtotal]);
 
 
   /* ================================================= */
@@ -201,7 +225,8 @@ export default function AgentPage() {
   /* ================================================= */
 
   async function handleAddToCart(
-    product: Product
+    product: Product,
+    source: AttributionSource = "ai_recommendation"
   ) {
     setCartLoading(true);
     setCartMessage("");
@@ -232,6 +257,15 @@ export default function AgentPage() {
 
       setCart(data);
 
+      if (source === "cross_sell") {
+        setAttributionSource("cross_sell");
+      } else if (
+        attributionSource === "direct_checkout" &&
+        source === "ai_recommendation"
+      ) {
+        setAttributionSource("ai_recommendation");
+      }
+
       setCartMessage(
         `${product.name} added to cart`
       );
@@ -249,6 +283,43 @@ export default function AgentPage() {
       );
     } finally {
       setCartLoading(false);
+    }
+  }
+
+
+  /* ================================================= */
+  /* LOAD CROSS-SELL RECOMMENDATIONS                    */
+  /* ================================================= */
+
+  async function loadCrossSell() {
+    if (cart.items.length === 0) {
+      setCrossSellRecommendations([]);
+      return;
+    }
+
+    setCrossSellLoading(true);
+
+    try {
+      const res = await fetch(
+        `${API_URL}/api/growth/upsell`
+      );
+
+      if (!res.ok) {
+        throw new Error("Unable to load cross-sell recommendations");
+      }
+
+      const data = await res.json();
+
+      setCrossSellRecommendations(
+        Array.isArray(data.recommendations)
+          ? data.recommendations
+          : []
+      );
+    } catch (err) {
+      console.error("Cross-sell load error:", err);
+      setCrossSellRecommendations([]);
+    } finally {
+      setCrossSellLoading(false);
     }
   }
 
@@ -287,6 +358,11 @@ export default function AgentPage() {
       }
 
       setCart(data);
+
+      if (data.items.length === 0) {
+        setAttributionSource("direct_checkout");
+        setCrossSellRecommendations([]);
+      }
     } catch (err) {
       console.error(
         "Remove from cart error:",
@@ -348,6 +424,9 @@ export default function AgentPage() {
           headers: {
             "Content-Type": "application/json",
           },
+          body: JSON.stringify({
+            attribution_source: attributionSource,
+          }),
         }
       );
 
@@ -360,6 +439,12 @@ export default function AgentPage() {
       }
 
       const checkoutData = createData as CheckoutResponse;
+
+      if (checkoutData.attribution_source) {
+        setAttributionSource(
+          checkoutData.attribution_source as AttributionSource
+        );
+      }
 
       const options = {
         key: checkoutData.key_id,
@@ -963,6 +1048,75 @@ export default function AgentPage() {
             </div>
 
 
+            {/* ================= CROSS-SELL ================= */}
+
+            {(crossSellLoading || crossSellRecommendations.length > 0) && (
+              <div className="mt-6 rounded-2xl border border-cyan-400/10 bg-black/20 p-5">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-xs text-gray-600">
+                      GROWTH AGENT
+                    </p>
+                    <h3 className="mt-1 text-lg font-medium">
+                      You may also like
+                    </h3>
+                  </div>
+
+                  <span className="rounded-full border border-cyan-400/20 bg-cyan-400/5 px-3 py-1 text-xs text-cyan-300">
+                    Cross-sell
+                  </span>
+                </div>
+
+                {crossSellLoading ? (
+                  <p className="mt-4 text-xs text-gray-500">
+                    Finding complementary products...
+                  </p>
+                ) : (
+                  <div className="mt-4 grid gap-3 md:grid-cols-2">
+                    {crossSellRecommendations.map((recommendation) => (
+                      <div
+                        key={recommendation.product.id}
+                        className="rounded-xl border border-white/10 bg-black/30 p-4"
+                      >
+                        <div className="flex items-start justify-betweengap-3">
+                          <div>
+                            <p className="text-xs text-cyan-400">
+                              {recommendation.product.category}
+                            </p>
+                            <p className="mt-1 text-sm font-medium">
+                              {recommendation.product.name}
+                            </p>
+                          </div>
+
+                          <p className="text-sm font-semibold text-cyan-300">
+                            ₹{recommendation.product.price.toLocaleString("en-IN")}
+                          </p>
+                        </div>
+
+                        <p className="mt-2 text-xs leading-5 text-gray-500">
+                          {recommendation.reason}
+                        </p>
+
+                        <button
+                          type="button"
+                          disabled={cartLoading}
+                          onClick={() =>
+                            handleAddToCart(
+                              recommendation.product,
+                              "cross_sell"
+                            )
+                          }
+                          className="mt-4 w-full rounded-lg border border-cyan-400/20 px-3 py-2 text-xs text-cyan-300 transition hover:bg-cyan-400/5 disabled:cursor-not-allowed disabled:opacity-40"
+                        >
+                          Add cross-sell
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* ================= CHECKOUT ================= */}
 
             <div className="mt-6 flex flex-col gap-4 rounded-2xl border border-cyan-400/10 bg-black/20 p-5 sm:flex-row sm:items-center sm:justify-between">
@@ -974,6 +1128,13 @@ export default function AgentPage() {
 
                 <p className="mt-1 text-xs text-gray-600">
                   Secure test payment powered by Razorpay
+                </p>
+
+                <p className="mt-2 text-[10px] uppercase tracking-wide text-gray-700">
+                  Revenue source:{" "}
+                  <span className="text-cyan-400/70">
+                    {formatValue(attributionSource)}
+                  </span>
                 </p>
 
                 {paymentStatus && (
@@ -1022,7 +1183,10 @@ export default function AgentPage() {
               "Product Ranking",
               "Recommendation",
               "Cart",
+              "Cross-sell",
               "Checkout",
+              "Payment Verification",
+              "Revenue Attribution",
             ].map(
               (step, index, array) => (
 
@@ -1070,7 +1234,10 @@ function ProductCard({
   cartLoading,
 }: {
   product: Product;
-  onAddToCart: (product: Product) => void;
+  onAddToCart: (
+    product: Product,
+    source?: AttributionSource
+  ) => void;
   cartLoading: boolean;
 }) {
 

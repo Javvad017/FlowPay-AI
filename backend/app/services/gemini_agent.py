@@ -46,8 +46,12 @@ SEARCH_PRODUCTS_TOOL = {
             "product_type": {
                 "type": ["string", "null"],
                 "description": (
-                    "Exact product type requested, "
-                    "such as earbuds, laptop or smartwatch."
+                    "Exact product type explicitly requested "
+                    "by the customer, such as earbuds, mouse, "
+                    "keyboard, laptop, smartwatch or charger. "
+                    "If the customer only describes a use case "
+                    "such as 'something for gaming', return null "
+                    "instead of guessing a product type."
                 ),
             },
             "category": {
@@ -60,7 +64,11 @@ SEARCH_PRODUCTS_TOOL = {
             "use_case": {
                 "type": ["string", "null"],
                 "description": (
-                    "How the customer will use the product."
+                    "Primary intended use such as gaming, "
+                    "programming, coding, fitness, gym, "
+                    "travel, study or work. "
+                    "If the customer says 'for gaming', "
+                    "set this to 'gaming'."
                 ),
             },
             "max_price": {
@@ -275,7 +283,7 @@ def run_gemini_agent(
         # ----------------------------------
 
         products = search_catalog(
-            query=None,
+            query=customer_message,
             max_price=arguments.get(
                 "max_price"
             ),
@@ -288,6 +296,10 @@ def run_gemini_agent(
             use_case=arguments.get(
                 "use_case"
             ),
+            preferences=arguments.get(
+                "preferences",
+                [],
+         ),
         )
 
         recommendations.extend(

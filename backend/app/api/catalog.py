@@ -1,6 +1,7 @@
 from fastapi import APIRouter, HTTPException
 from typing import Optional
 
+
 router = APIRouter(
     prefix="/api/catalog",
     tags=["Catalog"],
@@ -107,6 +108,90 @@ PRODUCTS = [
             "programming",
             "student",
             "developer",
+        ],
+    },
+    {
+        "id": "prod_006",
+        "name": "FlowMouse M1",
+        "description": "Ergonomic wireless mouse designed for productivity, study and gaming.",
+        "category": "Accessories",
+        "price": 1299,
+        "inventory": 74,
+        "features": [
+            "Wireless",
+            "Ergonomic Design",
+            "Adjustable DPI",
+            "Long Battery Life",
+        ],
+        "tags": [
+            "mouse",
+            "wireless",
+            "gaming",
+            "productivity",
+            "student",
+        ],
+    },
+    {
+        "id": "prod_007",
+        "name": "FlowKeyboard K1",
+        "description": "Compact mechanical keyboard built for developers, students and gamers.",
+        "category": "Accessories",
+        "price": 2499,
+        "inventory": 38,
+        "features": [
+            "Mechanical Switches",
+            "RGB Backlight",
+            "Low Latency",
+            "Compact Layout",
+        ],
+        "tags": [
+            "keyboard",
+            "mechanical",
+            "gaming",
+            "programming",
+            "developer",
+        ],
+    },
+    {
+        "id": "prod_008",
+        "name": "FlowCam Mini",
+        "description": "Full HD webcam designed for online meetings, classes and content creation.",
+        "category": "Electronics",
+        "price": 3499,
+        "inventory": 31,
+        "features": [
+            "1080p Full HD",
+            "Built-in Microphone",
+            "Auto Focus",
+            "Low Light Correction",
+        ],
+        "tags": [
+            "webcam",
+            "camera",
+            "meetings",
+            "online-class",
+            "streaming",
+        ],
+    },
+    {
+        "id": "prod_009",
+        "name": "FlowSpeaker Go",
+        "description": "Portable wireless speaker with rich sound for travel, home and everyday listening.",
+        "category": "Audio",
+        "price": 1999,
+        "inventory": 55,
+        "features": [
+            "Wireless",
+            "12-hour Battery",
+            "Portable Design",
+            "Water Resistant",
+        ],
+        "tags": [
+            "speaker",
+            "wireless",
+            "portable",
+            "audio",
+            "music",
         ],
     },
 ]

@@ -1,5 +1,6 @@
 import os
 import uuid
+from datetime import datetime, timezone
 from typing import Any
 
 import razorpay
@@ -9,6 +10,7 @@ from app.services.cart_service import (
     get_cart,
     clear_cart,
 )
+from app.services.database import get_connection
 
 
 load_dotenv()
@@ -43,17 +45,58 @@ razorpay_client = razorpay.Client(
 
 
 # ==========================================
-# In-memory checkout orders
+# Helpers
 # ==========================================
 
-orders: dict[str, dict[str, Any]] = {}
+def utc_now() -> str:
+    return datetime.now(
+        timezone.utc
+    ).isoformat()
+
+
+def order_row_to_dict(
+    connection,
+    order_row,
+) -> dict[str, Any] | None:
+
+    if order_row is None:
+        return None
+
+    order = dict(order_row)
+
+    cursor = connection.cursor()
+
+    cursor.execute(
+        """
+        SELECT
+            product_id,
+            name,
+            price,
+            quantity
+        FROM order_items
+        WHERE order_id = ?
+        ORDER BY id ASC
+        """,
+        (order["id"],),
+    )
+
+    items = [
+        dict(row)
+        for row in cursor.fetchall()
+    ]
+
+    order["items"] = items
+
+    return order
 
 
 # ==========================================
 # Create Checkout Order
 # ==========================================
 
-def create_checkout_order() -> dict[str, Any]:
+def create_checkout_order(
+    attribution_source: str = "direct_checkout",
+) -> dict[str, Any]:
 
     cart = get_cart()
 
@@ -71,32 +114,130 @@ def create_checkout_order() -> dict[str, Any]:
 
     # Razorpay expects the amount
     # in the smallest currency unit.
+    #
     # ₹2,999 -> 299900 paise
 
-    amount_paise = int(subtotal * 100)
+    amount_paise = int(
+        subtotal * 100
+    )
 
     internal_order_id = (
         f"flowpay_{uuid.uuid4().hex[:12]}"
     )
 
-    razorpay_order = razorpay_client.order.create(
-        data={
-            "amount": amount_paise,
-            "currency": "INR",
-            "receipt": internal_order_id,
-            "notes": {
-                "source": "FlowPay AI",
-                "internal_order_id": internal_order_id,
-            },
-        }
+    created_at = utc_now()
+
+    # ------------------------------------------
+    # Create Razorpay order
+    # ------------------------------------------
+
+    razorpay_order = (
+        razorpay_client.order.create(
+            data={
+                "amount": amount_paise,
+                "currency": "INR",
+                "receipt": internal_order_id,
+                "notes": {
+                    "source": "FlowPay AI",
+                    "internal_order_id": (
+                        internal_order_id
+                    ),
+                    "attribution_source": (
+                        attribution_source
+                    ),
+                },
+            }
+        )
     )
 
-    # Snapshot cart items at order creation.
-    # This is important because the cart can change later.
+    # ------------------------------------------
+    # Save order to SQLite
+    # ------------------------------------------
 
-    orders[internal_order_id] = {
-        "id": internal_order_id,
+    connection = get_connection()
+
+    try:
+
+        cursor = connection.cursor()
+
+        cursor.execute(
+            """
+            INSERT INTO orders (
+                id,
+                razorpay_order_id,
+                amount,
+                amount_paise,
+                currency,
+                status,
+                razorpay_payment_id,
+                attribution_source,
+                created_at,
+                paid_at
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                internal_order_id,
+                razorpay_order["id"],
+                subtotal,
+                amount_paise,
+                "INR",
+                "created",
+                None,
+                attribution_source,
+                created_at,
+                None,
+            ),
+        )
+
+        # --------------------------------------
+        # Snapshot cart items
+        # --------------------------------------
+
+        for item in cart["items"]:
+
+            cursor.execute(
+                """
+                INSERT INTO order_items (
+                    order_id,
+                    product_id,
+                    name,
+                    price,
+                    quantity
+                )
+                VALUES (?, ?, ?, ?, ?)
+                """,
+                (
+                    internal_order_id,
+                    item["product_id"],
+                    item["name"],
+                    item["price"],
+                    item["quantity"],
+                ),
+            )
+
+        connection.commit()
+
+    except Exception:
+
+        connection.rollback()
+
+        raise
+
+    finally:
+
+        connection.close()
+
+    # ------------------------------------------
+    # Response
+    # ------------------------------------------
+
+    return {
+        "order_id": internal_order_id,
         "razorpay_order_id": razorpay_order["id"],
+        "amount": amount_paise,
+        "currency": "INR",
+        "key_id": RAZORPAY_KEY_ID,
         "items": [
             {
                 "product_id": item["product_id"],
@@ -106,20 +247,6 @@ def create_checkout_order() -> dict[str, Any]:
             }
             for item in cart["items"]
         ],
-        "amount": subtotal,
-        "amount_paise": amount_paise,
-        "currency": "INR",
-        "status": "created",
-        "razorpay_payment_id": None,
-    }
-
-    return {
-        "order_id": internal_order_id,
-        "razorpay_order_id": razorpay_order["id"],
-        "amount": amount_paise,
-        "currency": "INR",
-        "key_id": RAZORPAY_KEY_ID,
-        "items": orders[internal_order_id]["items"],
     }
 
 
@@ -134,53 +261,168 @@ def verify_payment(
     razorpay_signature: str,
 ) -> dict[str, Any]:
 
-    order = orders.get(
-        internal_order_id
-    )
-
-    if order is None:
-        raise ValueError(
-            "Order not found"
-        )
-
-    # Never trust a client-supplied order ID.
-    # Compare it with our server-side record.
-
-    if (
-        order["razorpay_order_id"]
-        != razorpay_order_id
-    ):
-        raise ValueError(
-            "Razorpay order ID does not match"
-        )
+    connection = get_connection()
 
     try:
 
-        razorpay_client.utility.verify_payment_signature(
-            {
-                "razorpay_order_id": razorpay_order_id,
-                "razorpay_payment_id": razorpay_payment_id,
-                "razorpay_signature": razorpay_signature,
-            }
+        cursor = connection.cursor()
+
+        # --------------------------------------
+        # Get order
+        # --------------------------------------
+
+        cursor.execute(
+            """
+            SELECT *
+            FROM orders
+            WHERE id = ?
+            """,
+            (internal_order_id,),
         )
 
-    except Exception:
+        order_row = cursor.fetchone()
 
-        order["status"] = "payment_verification_failed"
+        if order_row is None:
+            raise ValueError(
+                "Order not found"
+            )
 
-        raise ValueError(
-            "Payment signature verification failed"
+        order = dict(order_row)
+
+        # --------------------------------------
+        # Verify Razorpay order ID
+        # --------------------------------------
+
+        if (
+            order["razorpay_order_id"]
+            != razorpay_order_id
+        ):
+            raise ValueError(
+                "Razorpay order ID does not match"
+            )
+
+        # --------------------------------------
+        # Prevent duplicate verification
+        # --------------------------------------
+
+        if order["status"] == "paid":
+
+            existing_payment_id = (
+                order["razorpay_payment_id"]
+            )
+
+            if (
+                existing_payment_id
+                == razorpay_payment_id
+            ):
+
+                updated_order = (
+                    order_row_to_dict(
+                        connection,
+                        order_row,
+                    )
+                )
+
+                return updated_order
+
+            raise ValueError(
+                "Order has already been paid"
+            )
+
+        # --------------------------------------
+        # Verify Razorpay signature
+        # --------------------------------------
+
+        try:
+
+            razorpay_client.utility.verify_payment_signature(
+                {
+                    "razorpay_order_id": (
+                        razorpay_order_id
+                    ),
+                    "razorpay_payment_id": (
+                        razorpay_payment_id
+                    ),
+                    "razorpay_signature": (
+                        razorpay_signature
+                    ),
+                }
+            )
+
+        except Exception:
+
+            cursor.execute(
+                """
+                UPDATE orders
+                SET status = ?
+                WHERE id = ?
+                """,
+                (
+                    "payment_verification_failed",
+                    internal_order_id,
+                ),
+            )
+
+            connection.commit()
+
+            raise ValueError(
+                "Payment signature verification failed"
+            )
+
+        # --------------------------------------
+        # Mark order as paid
+        # --------------------------------------
+
+        paid_at = utc_now()
+
+        cursor.execute(
+            """
+            UPDATE orders
+            SET
+                status = ?,
+                razorpay_payment_id = ?,
+                paid_at = ?
+            WHERE id = ?
+            """,
+            (
+                "paid",
+                razorpay_payment_id,
+                paid_at,
+                internal_order_id,
+            ),
         )
 
-    order["status"] = "paid"
+        connection.commit()
 
-    order["razorpay_payment_id"] = (
-        razorpay_payment_id
-    )
-    
-    clear_cart()
+        # --------------------------------------
+        # Clear server-side cart
+        # --------------------------------------
 
-    return order
+        clear_cart()
+
+        # --------------------------------------
+        # Return updated order
+        # --------------------------------------
+
+        cursor.execute(
+            """
+            SELECT *
+            FROM orders
+            WHERE id = ?
+            """,
+            (internal_order_id,),
+        )
+
+        updated_row = cursor.fetchone()
+
+        return order_row_to_dict(
+            connection,
+            updated_row,
+        )
+
+    finally:
+
+        connection.close()
 
 
 # ==========================================
@@ -191,13 +433,63 @@ def get_order(
     internal_order_id: str,
 ) -> dict[str, Any] | None:
 
-    return orders.get(
-        internal_order_id
-    )
+    connection = get_connection()
+
+    try:
+
+        cursor = connection.cursor()
+
+        cursor.execute(
+            """
+            SELECT *
+            FROM orders
+            WHERE id = ?
+            """,
+            (internal_order_id,),
+        )
+
+        row = cursor.fetchone()
+
+        return order_row_to_dict(
+            connection,
+            row,
+        )
+
+    finally:
+
+        connection.close()
+
 
 # ==========================================
 # Get All Orders
 # ==========================================
 
 def get_all_orders() -> list[dict[str, Any]]:
-    return list(orders.values())
+
+    connection = get_connection()
+
+    try:
+
+        cursor = connection.cursor()
+
+        cursor.execute(
+            """
+            SELECT *
+            FROM orders
+            ORDER BY created_at DESC
+            """
+        )
+
+        rows = cursor.fetchall()
+
+        return [
+            order_row_to_dict(
+                connection,
+                row,
+            )
+            for row in rows
+        ]
+
+    finally:
+
+        connection.close()

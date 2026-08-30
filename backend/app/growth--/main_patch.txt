@@ -1,0 +1,5 @@
+# Add this import with your other routers:
+from app.api.growth import router as growth_router
+
+# Add this with your other include_router calls:
+app.include_router(growth_router)

@@ -9,70 +9,89 @@ def search_catalog(
     product_type: str | None = None,
     category: str | None = None,
     use_case: str | None = None,
+    preferences: list[str] | None = None,
 ) -> list[dict[str, Any]]:
     """
-    Search and rank products from the merchant catalog.
+    Search and deterministically rank products
+    from the merchant catalog.
 
-    This service is shared by:
-    - Catalog API
-    - Commerce Agent
-    - Gemini Agent
-    - Future Recommendation Agent
+    Ranking priority:
+    1. Hard constraints
+    2. Product type
+    3. Use case
+    4. Preferences
+    5. Query relevance
+    6. Inventory
     """
 
     candidates = PRODUCTS.copy()
 
-    # =========================================
+    # ==========================================
     # 1. HARD PRICE FILTER
-    # =========================================
+    # ==========================================
 
     if max_price is not None:
         candidates = [
             product
             for product in candidates
-            if product["price"] <= max_price
+            if product.get("price", 0) <= max_price
         ]
 
-    # =========================================
+    # ==========================================
     # 2. HARD PRODUCT TYPE FILTER
-    # =========================================
+    # ==========================================
 
     if product_type:
         product_type_lower = product_type.lower()
 
-        candidates = [
-            product
-            for product in candidates
-            if (
-                product_type_lower
-                in product["name"].lower()
-                or product_type_lower
-                in product["description"].lower()
-                or product_type_lower
-                in [
-                    tag.lower()
-                    for tag in product["tags"]
-                ]
-            )
-        ]
+        typed_candidates = []
 
-    # =========================================
+        for product in candidates:
+            name = product.get("name", "").lower()
+            description = product.get(
+                "description", ""
+            ).lower()
+
+            tags = [
+                str(tag).lower()
+                for tag in product.get("tags", [])
+            ]
+
+            if (
+                product_type_lower in name
+                or product_type_lower in description
+                or product_type_lower in tags
+            ):
+                typed_candidates.append(product)
+
+        # Only hard-filter if actual matches exist.
+        # This protects against Gemini returning a
+        # generic or unsupported product type.
+        if typed_candidates:
+            candidates = typed_candidates
+
+    # ==========================================
     # 3. HARD CATEGORY FILTER
-    # =========================================
+    # ==========================================
 
     if category:
         category_lower = category.lower()
 
-        candidates = [
+        category_candidates = [
             product
             for product in candidates
-            if product["category"].lower()
-            == category_lower
+            if product.get(
+                "category", ""
+            ).lower() == category_lower
         ]
 
-    # =========================================
-    # 4. PREPARE QUERY TERMS
-    # =========================================
+        # Same defensive behavior as product type.
+        if category_candidates:
+            candidates = category_candidates
+
+    # ==========================================
+    # 4. PREPARE SEARCH SIGNALS
+    # ==========================================
 
     query_terms: list[str] = []
 
@@ -83,115 +102,176 @@ def search_catalog(
             if len(term) > 1
         ]
 
-    # =========================================
-    # 5. SCORE PRODUCTS
-    # =========================================
+    normalized_preferences = [
+        str(preference).lower().strip()
+        for preference in (preferences or [])
+        if str(preference).strip()
+    ]
 
-    scored_products = []
+    # ==========================================
+    # 5. SCORE PRODUCTS
+    # ==========================================
+
+    scored_products: list[
+        dict[str, Any]
+    ] = []
 
     for product in candidates:
 
         score = 0
 
-        name = product["name"].lower()
+        name = product.get(
+            "name", ""
+        ).lower()
 
-        description = (
-            product["description"].lower()
-        )
+        description = product.get(
+            "description", ""
+        ).lower()
 
-        product_category = (
-            product["category"].lower()
-        )
+        product_category = product.get(
+            "category", ""
+        ).lower()
 
         tags = [
-            tag.lower()
-            for tag in product["tags"]
+            str(tag).lower()
+            for tag in product.get("tags", [])
         ]
 
         features = [
-            feature.lower()
-            for feature in product["features"]
+            str(feature).lower()
+            for feature in product.get(
+                "features", []
+            )
         ]
 
-        searchable_text = " ".join(
-            [
-                name,
-                description,
-                product_category,
-                *tags,
-                *features,
-            ]
-        )
-
-        # -----------------------------------------
-        # Product type
-        # -----------------------------------------
+        # ======================================
+        # PRODUCT TYPE
+        # ======================================
 
         if product_type:
-            product_type_lower = (
-                product_type.lower()
-            )
+            signal = product_type.lower()
 
-            if product_type_lower in name:
-                score += 10
+            if signal in name:
+                score += 30
 
-            if product_type_lower in tags:
-                score += 10
+            if signal in tags:
+                score += 25
 
-            if product_type_lower in description:
-                score += 8
+            if signal in description:
+                score += 15
 
-        # -----------------------------------------
-        # Category
-        # -----------------------------------------
+        # ======================================
+        # CATEGORY
+        # ======================================
 
         if category:
             if (
                 product_category
                 == category.lower()
             ):
-                score += 7
+                score += 15
 
-        # -----------------------------------------
-        # Use case
-        # -----------------------------------------
+        # ======================================
+        # USE CASE
+        # ======================================
 
         if use_case:
-            use_case_lower = use_case.lower()
+            signal = use_case.lower()
 
-            if use_case_lower in searchable_text:
+            # Tags are strongest because merchant
+            # explicitly classified the product.
+            if signal in tags:
+                score += 30
+
+            # Feature match is also strong.
+            if any(
+                signal in feature
+                for feature in features
+            ):
+                score += 20
+
+            if signal in description:
+                score += 15
+
+            if signal in name:
+                score += 10
+
+        # ======================================
+        # CUSTOMER PREFERENCES
+        # ======================================
+
+        for preference in normalized_preferences:
+
+            if preference in tags:
+                score += 12
+
+            if any(
+                preference in feature
+                for feature in features
+            ):
+                score += 10
+
+            if preference in description:
                 score += 6
 
-        # -----------------------------------------
-        # Query terms
-        # -----------------------------------------
+            if preference in name:
+                score += 5
+
+        # ======================================
+        # QUERY TERMS
+        # ======================================
 
         for term in query_terms:
 
             if term in name:
-                score += 5
+                score += 8
 
             elif term in tags:
-                score += 4
+                score += 7
 
-            elif term in features:
-                score += 3
+            elif any(
+                term in feature
+                for feature in features
+            ):
+                score += 5
 
             elif term in description:
-                score += 2
+                score += 3
 
-        # -----------------------------------------
-        # Inventory
-        # -----------------------------------------
+            elif term == product_category:
+                score += 3
 
-        if product["inventory"] > 0:
+        # ======================================
+        # INVENTORY
+        # ======================================
+
+        if product.get("inventory", 0) > 0:
             score += 1
+        else:
+            # Never recommend unavailable products.
+            continue
 
-        # -----------------------------------------
-        # Keep relevant products
-        # -----------------------------------------
+        # ======================================
+        # RELEVANCE GATE
+        # ======================================
 
-        if score > 0:
+        has_search_intent = bool(
+            product_type
+            or category
+            or use_case
+            or query_terms
+            or normalized_preferences
+        )
+
+        if has_search_intent:
+            if score > 1:
+                scored_products.append(
+                    {
+                        "product": product,
+                        "score": score,
+                    }
+                )
+        else:
             scored_products.append(
                 {
                     "product": product,
@@ -199,13 +279,20 @@ def search_catalog(
                 }
             )
 
-    # =========================================
-    # 6. RANK PRODUCTS
-    # =========================================
+    # ==========================================
+    # 6. DETERMINISTIC RANKING
+    # ==========================================
 
     scored_products.sort(
-        key=lambda item: item["score"],
-        reverse=True,
+        key=lambda item: (
+            -item["score"],
+            item["product"].get(
+                "price", 0
+            ),
+            item["product"].get(
+                "name", ""
+            ).lower(),
+        )
     )
 
     return [
