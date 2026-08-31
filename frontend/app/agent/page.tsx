@@ -920,10 +920,13 @@ export default function AgentPage() {
             </div>
           )}
 
-          {/* AGENT PIPELINE STEPPER */}
-          <div className="mt-10 rounded-xl border border-[#E5E7EB] bg-white p-5 text-xs text-[#6B7280]">
-            <p className="font-bold text-[#111827]">Agent Pipeline Status:</p>
-            <div className="mt-3 flex flex-wrap items-center gap-2">
+          {/* COMMERCE EXECUTION PIPELINE */}
+          <div className="mt-8 rounded-xl border border-[#E5E7EB] bg-white p-5">
+            <div className="mb-3 flex items-center justify-between">
+              <p className="text-[10px] font-bold uppercase tracking-wider text-[#6B7280]">Commerce Execution Pipeline</p>
+              <span className="text-[10px] text-[#9CA3AF]">Architecture overview</span>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
               {[
                 "Intent Recognition",
                 "Commerce Agent",
@@ -935,10 +938,10 @@ export default function AgentPage() {
                 "Razorpay Checkout",
               ].map((step, idx, arr) => (
                 <div key={step} className="flex items-center gap-2">
-                  <span className="rounded border border-[#E5E7EB] bg-[#F9FAFB] px-2.5 py-1 text-[11px] text-[#374151]">
+                  <span className="rounded border border-[#E5E7EB] bg-[#F9FAFB] px-2.5 py-1 text-[11px] font-medium text-[#374151]">
                     {step}
                   </span>
-                  {idx < arr.length - 1 && <span>→</span>}
+                  {idx < arr.length - 1 && <span className="text-[#C4C9D4] text-xs">→</span>}
                 </div>
               ))}
             </div>
