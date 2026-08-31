@@ -125,59 +125,331 @@ function getInsightIcon(type: string) {
   return icons[type] ?? "✦";
 }
 
-// ─── Revenue Contribution Bar ────────────────────────────────────────────────
+// ─── Revenue Attribution SVG Chart (Horizontal Bars) ─────────────────────────
 
 type BarItem = {
   label: string;
   shortLabel: string;
   revenue: number;
   color: string;
-  bgColor: string;
-  textColor: string;
+  fill: string;
 };
 
-function RevenueContributionChart({ items }: { items: BarItem[] }) {
+function RevenueAttributionChart({ items }: { items: BarItem[] }) {
   const total = items.reduce((sum, i) => sum + i.revenue, 0);
+  const maxRevenue = Math.max(...items.map((i) => i.revenue), 1);
+
+  // SVG layout constants
+  const W = 680;
+  const rowH = 44;
+  const labelW = 148;
+  const valueW = 88; // right-side value column
+  const badgeW = 36; // width reserved for "Top" badge
+  const barAreaW = W - labelW - valueW - badgeW;
+  const paddingTop = 8;
+  const H = items.length * rowH + paddingTop * 2;
+
+  // Gridlines at 0%, 25%, 50%, 75%, 100% of max
+  const gridLines = [0, 0.25, 0.5, 0.75, 1.0];
 
   return (
-    <div className="space-y-3">
-      {items.map((item) => {
-        const pct = total > 0 ? (item.revenue / total) * 100 : 0;
-        const isLeader = item.revenue === Math.max(...items.map((i) => i.revenue)) && item.revenue > 0;
-        return (
-          <div key={item.label} className="flex items-center gap-3">
-            <div className="w-36 shrink-0 text-right">
-              <span className="text-xs font-medium text-[#374151]">{item.shortLabel}</span>
-            </div>
-            <div className="relative flex flex-1 items-center">
-              <div className="h-6 w-full overflow-hidden rounded bg-[#F3F4F6]">
-                {pct > 0 && (
-                  <div
-                    className={`h-full rounded transition-all duration-500 ${item.color}`}
-                    style={{ width: `${Math.max(pct, 1)}%` }}
-                    title={`${item.label}: ${formatMoney(item.revenue)} (${pct.toFixed(1)}%)`}
-                  />
-                )}
-              </div>
-              {isLeader && pct > 0 && (
-                <span className="ml-2 whitespace-nowrap rounded border border-[#A7F3D0] bg-[#ECFDF5] px-1.5 py-0.5 text-[10px] font-bold text-[#047857]">
-                  Top
-                </span>
+    <div className="w-full overflow-x-auto">
+      <svg
+        viewBox={`0 0 ${W} ${H}`}
+        className="w-full"
+        style={{ minWidth: 320, height: "auto" }}
+        aria-label="Revenue attribution chart"
+      >
+        {/* Grid lines */}
+        {gridLines.map((g) => {
+          const x = labelW + g * barAreaW;
+          return (
+            <line
+              key={g}
+              x1={x}
+              y1={paddingTop}
+              x2={x}
+              y2={H - paddingTop}
+              stroke="#E5E7EB"
+              strokeWidth="1"
+              strokeDasharray={g === 0 ? "none" : "3 3"}
+            />
+          );
+        })}
+
+        {items.map((item, idx) => {
+          const pct = total > 0 ? item.revenue / maxRevenue : 0;
+          const barW = Math.max(pct * barAreaW, item.revenue > 0 ? 3 : 0);
+          const y = paddingTop + idx * rowH;
+          const barY = y + rowH * 0.25;
+          const barH = rowH * 0.5;
+          const isLeader = item.revenue === Math.max(...items.map((i) => i.revenue)) && item.revenue > 0;
+          const revPct = total > 0 ? (item.revenue / total) * 100 : 0;
+
+          return (
+            <g key={item.label}>
+              <title>{`${item.label}: ${formatMoney(item.revenue)}${revPct > 0 ? ` (${revPct.toFixed(1)}%)` : ""}`}</title>
+
+              {/* Label */}
+              <text
+                x={labelW - 8}
+                y={y + rowH / 2}
+                textAnchor="end"
+                dominantBaseline="middle"
+                fontSize="11"
+                fill="#374151"
+                fontFamily="Inter, system-ui, sans-serif"
+              >
+                {item.label}
+              </text>
+
+              {/* Bar background */}
+              <rect
+                x={labelW}
+                y={barY}
+                width={barAreaW}
+                height={barH}
+                rx="3"
+                fill="#F3F4F6"
+              />
+
+              {/* Bar fill */}
+              {item.revenue > 0 && (
+                <rect
+                  x={labelW}
+                  y={barY}
+                  width={barW}
+                  height={barH}
+                  rx="3"
+                  fill={item.fill}
+                  opacity="0.9"
+                />
               )}
-            </div>
-            <div className="w-24 shrink-0 text-right">
-              <span className="font-mono text-xs font-bold text-[#111827]">
+
+              {/* Value label — always right of the bar + badge area */}
+              <text
+                x={labelW + barAreaW + badgeW + 4}
+                y={y + rowH / 2}
+                dominantBaseline="middle"
+                fontSize="11"
+                fill={item.revenue > 0 ? "#111827" : "#9CA3AF"}
+                fontFamily="'JetBrains Mono', 'Fira Mono', monospace"
+                fontWeight={item.revenue > 0 ? "700" : "400"}
+              >
                 {formatMoney(item.revenue)}
-              </span>
-              {pct > 0 && (
-                <span className="ml-1.5 text-[10px] text-[#9CA3AF]">
-                  {pct.toFixed(0)}%
-                </span>
+              </text>
+
+              {/* % label inside bar if wide enough */}
+              {revPct >= 12 && (
+                <text
+                  x={labelW + barW / 2}
+                  y={y + rowH / 2}
+                  textAnchor="middle"
+                  dominantBaseline="middle"
+                  fontSize="10"
+                  fill="white"
+                  fontFamily="Inter, system-ui, sans-serif"
+                  fontWeight="600"
+                >
+                  {revPct.toFixed(0)}%
+                </text>
               )}
+
+              {/* Top badge — fixed position right after bar area */}
+              {isLeader && item.revenue > 0 && (
+                <>
+                  <rect
+                    x={labelW + barAreaW + 2}
+                    y={barY}
+                    width={30}
+                    height={barH}
+                    rx="3"
+                    fill="#ECFDF5"
+                    stroke="#A7F3D0"
+                    strokeWidth="1"
+                  />
+                  <text
+                    x={labelW + barAreaW + 17}
+                    y={y + rowH / 2}
+                    textAnchor="middle"
+                    dominantBaseline="middle"
+                    fontSize="9"
+                    fill="#047857"
+                    fontFamily="Inter, system-ui, sans-serif"
+                    fontWeight="700"
+                  >
+                    Top
+                  </text>
+                </>
+              )}
+            </g>
+          );
+        })}
+      </svg>
+    </div>
+  );
+}
+
+// ─── Revenue Performance SVG Chart (Vertical Columns, per-product) ────────────
+
+function RevenuePerformanceChart({ products }: { products: TopProduct[] }) {
+  if (!products || products.length === 0) return null;
+
+  const W = 640;
+  const H = 210;
+  const paddingLeft = 72;
+  const paddingRight = 16;
+  const paddingTop = 20;
+  const paddingBottom = 54;
+  const chartW = W - paddingLeft - paddingRight;
+  const chartH = H - paddingTop - paddingBottom;
+
+  const maxRevenue = Math.max(...products.map((p) => p.revenue), 1);
+  const barCount = products.length;
+  const barGroupW = chartW / barCount;
+  const barW = Math.min(barGroupW * 0.5, 48);
+
+  // Y-axis grid steps: 3 steps
+  const yStep = maxRevenue / 3;
+  const yGridLines = [0, 1, 2, 3].map((i) => yStep * i);
+
+  // Display label: remove redundant brand prefix 'Flow' if present, but keep core product name
+  function getDisplayLabel(name: string) {
+    const cleaned = name.replace(/^Flow\s*/i, "");
+    return cleaned.length > 14 ? cleaned.slice(0, 13) + "…" : cleaned;
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="w-full overflow-x-auto">
+        <svg
+          viewBox={`0 0 ${W} ${H}`}
+          className="w-full"
+          style={{ minWidth: 300, height: "auto" }}
+          aria-label="Revenue performance by product"
+        >
+          {/* Y-axis grid lines + labels */}
+          {yGridLines.map((val, i) => {
+            const y = paddingTop + chartH - (val / maxRevenue) * chartH;
+            return (
+              <g key={i}>
+                <line
+                  x1={paddingLeft}
+                  y1={y}
+                  x2={W - paddingRight}
+                  y2={y}
+                  stroke={val === 0 ? "#D1D5DB" : "#E5E7EB"}
+                  strokeWidth="1"
+                  strokeDasharray={val === 0 ? "none" : "3 3"}
+                />
+                {val > 0 && (
+                  <text
+                    x={paddingLeft - 6}
+                    y={y}
+                    textAnchor="end"
+                    dominantBaseline="middle"
+                    fontSize="9"
+                    fill="#9CA3AF"
+                    fontFamily="'JetBrains Mono', 'Fira Mono', monospace"
+                  >
+                    {val >= 1000 ? `₹${(val / 1000).toFixed(val % 1000 === 0 ? 0 : 1)}k` : `₹${val.toFixed(0)}`}
+                  </text>
+                )}
+              </g>
+            );
+          })}
+
+          {/* Bars */}
+          {products.map((product, idx) => {
+            const barH = (product.revenue / maxRevenue) * chartH;
+            const cx = paddingLeft + idx * barGroupW + barGroupW / 2;
+            const barX = cx - barW / 2;
+            const barY = paddingTop + chartH - barH;
+            const displayLabel = getDisplayLabel(product.name);
+            const isTop = product.revenue === maxRevenue;
+
+            return (
+              <g key={product.product_id}>
+                <title>{`${product.name}: ${formatMoney(product.revenue)} · ${product.units} units`}</title>
+
+                {/* Bar */}
+                <rect
+                  x={barX}
+                  y={barY}
+                  width={barW}
+                  height={Math.max(barH, 3)}
+                  rx="4"
+                  fill={isTop ? "#2563EB" : "#93C5FD"}
+                  opacity="0.9"
+                />
+
+                {/* Value on top of bar */}
+                {product.revenue > 0 && (
+                  <text
+                    x={cx}
+                    y={barY - 5}
+                    textAnchor="middle"
+                    fontSize="9.5"
+                    fill={isTop ? "#1D4ED8" : "#4B5563"}
+                    fontFamily="'JetBrains Mono', 'Fira Mono', monospace"
+                    fontWeight="700"
+                  >
+                    {product.revenue >= 1000
+                      ? `₹${(product.revenue / 1000).toFixed(1)}k`
+                      : `₹${product.revenue.toFixed(0)}`}
+                  </text>
+                )}
+
+                {/* X-axis product label */}
+                <text
+                  x={cx}
+                  y={paddingTop + chartH + 16}
+                  textAnchor="middle"
+                  fontSize="10"
+                  fill={isTop ? "#111827" : "#4B5563"}
+                  fontFamily="Inter, system-ui, sans-serif"
+                  fontWeight={isTop ? "700" : "500"}
+                >
+                  {displayLabel}
+                </text>
+
+                {/* Units label */}
+                <text
+                  x={cx}
+                  y={paddingTop + chartH + 30}
+                  textAnchor="middle"
+                  fontSize="9"
+                  fill="#9CA3AF"
+                  fontFamily="Inter, system-ui, sans-serif"
+                >
+                  {product.units} unit{product.units !== 1 ? "s" : ""}
+                </text>
+              </g>
+            );
+          })}
+        </svg>
+      </div>
+
+      {/* Full product name legend */}
+      <div className="grid grid-cols-2 gap-2 border-t border-[#F3F4F6] pt-3 sm:grid-cols-4">
+        {products.map((product) => {
+          const isTop = product.revenue === maxRevenue;
+          return (
+            <div key={product.product_id} className="rounded border border-[#F3F4F6] bg-[#F9FAFB] p-2 text-xs">
+              <div className="flex items-center gap-1.5">
+                <span className={`h-2 w-2 rounded-full ${isTop ? "bg-[#2563EB]" : "bg-[#93C5FD]"}`} />
+                <span className="truncate font-semibold text-[#111827]" title={product.name}>
+                  {product.name}
+                </span>
+              </div>
+              <div className="mt-1 flex items-center justify-between font-mono text-[11px] text-[#6B7280]">
+                <span>{formatMoney(product.revenue)}</span>
+                <span className="text-[10px] text-[#9CA3AF]">{product.units} u</span>
+              </div>
             </div>
-          </div>
-        );
-      })}
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -399,39 +671,35 @@ export default function Home() {
   const showRevenue = activeTab === "all" || activeTab === "revenue";
   const showActivity = activeTab === "all" || activeTab === "activity";
 
-  // Build attribution bar items from existing stats
+  // Build attribution items for SVG chart
   const attributionBarItems: BarItem[] = [
     {
       label: "Cross-sell Agent",
       shortLabel: "Cross-sell Agent",
       revenue: stats?.cross_sell_revenue ?? 0,
-      color: "bg-[#7C3AED]",
-      bgColor: "bg-purple-50",
-      textColor: "text-purple-700",
+      color: "#7C3AED",
+      fill: "#7C3AED",
     },
     {
       label: "AI Recommendation",
       shortLabel: "AI Recommendation",
       revenue: stats?.ai_revenue ?? 0,
-      color: "bg-[#2563EB]",
-      bgColor: "bg-blue-50",
-      textColor: "text-blue-700",
+      color: "#2563EB",
+      fill: "#2563EB",
     },
     {
       label: "Checkout Recovery",
       shortLabel: "Checkout Recovery",
       revenue: stats?.recovery_revenue ?? 0,
-      color: "bg-[#F59E0B]",
-      bgColor: "bg-amber-50",
-      textColor: "text-amber-700",
+      color: "#F59E0B",
+      fill: "#F59E0B",
     },
     {
       label: "Direct Checkout",
       shortLabel: "Direct Checkout",
       revenue: stats?.direct_revenue ?? 0,
-      color: "bg-[#6B7280]",
-      bgColor: "bg-gray-50",
-      textColor: "text-gray-700",
+      color: "#6B7280",
+      fill: "#6B7280",
     },
   ];
 
@@ -473,8 +741,8 @@ export default function Home() {
                     key={tab.id}
                     onClick={() => setActiveTab(tab.id as any)}
                     className={`rounded-md px-3 py-1.5 text-xs font-medium transition-all ${isActive
-                        ? "border border-[#D1D5DB] bg-white text-[#111827] shadow-sm"
-                        : "text-[#6B7280] hover:text-[#111827]"
+                      ? "border border-[#D1D5DB] bg-white text-[#111827] shadow-sm"
+                      : "text-[#6B7280] hover:text-[#111827]"
                       }`}
                   >
                     {tab.label}
@@ -724,6 +992,22 @@ export default function Home() {
                   {/* Commerce Performance Summary */}
                   {stats && (
                     <CommercePerformanceSummary stats={stats} intelligence={intelligence} />
+                  )}
+
+                  {/* Chart #1 — Revenue Performance (per-product column chart) */}
+                  {intelligence?.top_products && intelligence.top_products.length > 0 && (
+                    <div className="fintech-card p-5">
+                      <div className="mb-4 flex items-center justify-between border-b border-[#E5E7EB] pb-3">
+                        <div>
+                          <h3 className="font-heading text-sm font-bold text-[#111827]">Revenue Performance</h3>
+                          <p className="mt-0.5 text-[11px] text-[#9CA3AF]">Revenue by product — confirmed paid orders</p>
+                        </div>
+                        <span className="rounded border border-[#E5E7EB] bg-[#F9FAFB] px-2.5 py-1 text-[11px] font-semibold text-[#374151]">
+                          {intelligence.top_products.length} Product{intelligence.top_products.length !== 1 ? "s" : ""}
+                        </span>
+                      </div>
+                      <RevenuePerformanceChart products={intelligence.top_products} />
+                    </div>
                   )}
 
                   {/* AI Business Insight (from existing merchant insights) */}
@@ -1022,19 +1306,22 @@ export default function Home() {
                       ))}
                     </div>
 
-                    {/* Revenue Contribution Visualization */}
+                    {/* Chart #2 — Revenue Attribution SVG (horizontal bars) */}
                     <div className="mt-6 border-t border-[#E5E7EB] pt-5">
                       <div className="mb-4 flex items-center justify-between">
-                        <h4 className="text-xs font-bold text-[#111827]">Revenue Contribution</h4>
+                        <div>
+                          <h4 className="text-xs font-bold text-[#111827]">Revenue Attribution</h4>
+                          <p className="mt-0.5 text-[11px] text-[#9CA3AF]">Revenue contribution by channel</p>
+                        </div>
                         <span className="font-mono text-[11px] text-[#6B7280]">
                           {formatMoney(stats?.total_revenue ?? 0)} total
                         </span>
                       </div>
 
                       {stats && (stats.total_revenue ?? 0) > 0 ? (
-                        <RevenueContributionChart items={attributionBarItems} />
+                        <RevenueAttributionChart items={attributionBarItems} />
                       ) : (
-                        <p className="py-4 text-center text-xs text-[#9CA3AF]">
+                        <p className="py-6 text-center text-xs text-[#9CA3AF]">
                           No revenue recorded yet. Complete a transaction to see attribution data.
                         </p>
                       )}
@@ -1222,8 +1509,8 @@ export default function Home() {
                                 <td className="px-3 py-3 text-right">
                                   <span
                                     className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-semibold ${isPaid
-                                        ? "border border-[#A7F3D0] bg-[#ECFDF5] text-[#047857]"
-                                        : "border border-[#FDE68A] bg-[#FEF3C7] text-[#92400E]"
+                                      ? "border border-[#A7F3D0] bg-[#ECFDF5] text-[#047857]"
+                                      : "border border-[#FDE68A] bg-[#FEF3C7] text-[#92400E]"
                                       }`}
                                   >
                                     <span
