@@ -16,6 +16,7 @@ PRODUCTS = [
         "category": "Audio",
         "price": 2999,
         "inventory": 42,
+        "image_url": "https://images.unsplash.com/photo-1590658268037-6bf12165a8df?auto=format&fit=crop&w=600&q=80",
         "features": [
             "Active Noise Cancellation",
             "IPX5 Water Resistance",
@@ -37,6 +38,7 @@ PRODUCTS = [
         "category": "Audio",
         "price": 1499,
         "inventory": 86,
+        "image_url": "https://images.unsplash.com/photo-1606220588913-b3aacb4d2f46?auto=format&fit=crop&w=600&q=80",
         "features": [
             "Wireless",
             "20-hour Battery",
@@ -57,6 +59,7 @@ PRODUCTS = [
         "category": "Wearables",
         "price": 4999,
         "inventory": 27,
+        "image_url": "https://images.unsplash.com/photo-1508685096489-7aacd43bd3b1?auto=format&fit=crop&w=600&q=80",
         "features": [
             "Heart Rate Tracking",
             "GPS",
@@ -77,6 +80,7 @@ PRODUCTS = [
         "category": "Accessories",
         "price": 1799,
         "inventory": 63,
+        "image_url": "https://images.unsplash.com/photo-1583863788434-e58a36330cf0?auto=format&fit=crop&w=600&q=80",
         "features": [
             "65W Fast Charging",
             "USB-C PD",
@@ -97,6 +101,7 @@ PRODUCTS = [
         "category": "Computers",
         "price": 58999,
         "inventory": 12,
+        "image_url": "https://images.unsplash.com/photo-1517336714731-489689fd1ca8?auto=format&fit=crop&w=600&q=80",
         "features": [
             "16GB RAM",
             "512GB SSD",
@@ -117,6 +122,7 @@ PRODUCTS = [
         "category": "Accessories",
         "price": 1299,
         "inventory": 74,
+        "image_url": "https://images.unsplash.com/photo-1615663245857-ac93bb7c39e7?auto=format&fit=crop&w=600&q=80",
         "features": [
             "Wireless",
             "Ergonomic Design",
@@ -138,6 +144,7 @@ PRODUCTS = [
         "category": "Accessories",
         "price": 2499,
         "inventory": 38,
+        "image_url": "https://images.unsplash.com/photo-1587829741301-dc798b83add3?auto=format&fit=crop&w=600&q=80",
         "features": [
             "Mechanical Switches",
             "RGB Backlight",
@@ -159,6 +166,7 @@ PRODUCTS = [
         "category": "Electronics",
         "price": 3499,
         "inventory": 31,
+        "image_url": "https://images.unsplash.com/photo-1588702547919-26089e690ecc?auto=format&fit=crop&w=600&q=80",
         "features": [
             "1080p Full HD",
             "Built-in Microphone",
@@ -180,6 +188,7 @@ PRODUCTS = [
         "category": "Audio",
         "price": 1999,
         "inventory": 55,
+        "image_url": "https://images.unsplash.com/photo-1545454675-3531b543be5d?auto=format&fit=crop&w=600&q=80",
         "features": [
             "Wireless",
             "12-hour Battery",

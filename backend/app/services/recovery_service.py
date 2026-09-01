@@ -1,10 +1,15 @@
 from __future__ import annotations
 
+import os
 from datetime import datetime, timezone
 from typing import Any
 
+from dotenv import load_dotenv
+
 from app.services.checkout_service import get_order
 from app.services.database import get_connection
+
+load_dotenv()
 
 
 RECOVERABLE_STATUSES = {"created"}
@@ -96,6 +101,7 @@ def get_recovery_opportunities() -> list[dict[str, Any]]:
                     "recovery_message": (
                         _recovery_message(order)
                     ),
+                    "key_id": os.getenv("RAZORPAY_KEY_ID"),
                     "recovery_attempted": (
                         recovery_attempted_at
                         is not None
@@ -144,6 +150,22 @@ def initiate_recovery(
         cursor = connection.cursor()
 
         # --------------------------------------
+        # Mark this order as a recovery checkout
+        # --------------------------------------
+
+        cursor.execute(
+            """
+            UPDATE orders
+            SET attribution_source = ?
+            WHERE id = ?
+            """,
+            (
+                "recovery",
+                order_id,
+            ),
+        )
+
+        # --------------------------------------
         # Record recovery attempt
         # --------------------------------------
 
@@ -178,7 +200,12 @@ def initiate_recovery(
     return {
         "success": True,
         "order_id": order_id,
+        "razorpay_order_id": order["razorpay_order_id"],
+        "amount": order["amount_paise"],
+        "currency": order["currency"],
+        "key_id": os.getenv("RAZORPAY_KEY_ID"),
         "status": "recovery_initiated",
+        "attribution_source": "recovery",
         "message": message,
         "recovery_attempted_at": now,
     }

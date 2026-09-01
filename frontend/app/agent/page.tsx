@@ -100,144 +100,54 @@ function formatValue(value: unknown) {
     .replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
-/* ================================================= */
-/* PRODUCT IMAGE RENDERER                            */
-/* ================================================= */
+const PRODUCT_IMAGES: Record<string, string> = {
+  prod_001: "https://images.unsplash.com/photo-1590658268037-6bf12165a8df?auto=format&fit=crop&w=600&q=80",
+  prod_002: "https://images.unsplash.com/photo-1606220588913-b3aacb4d2f46?auto=format&fit=crop&w=600&q=80",
+  prod_003: "https://images.unsplash.com/photo-1508685096489-7aacd43bd3b1?auto=format&fit=crop&w=600&q=80",
+  prod_004: "https://images.unsplash.com/photo-1583863788434-e58a36330cf0?auto=format&fit=crop&w=600&q=80",
+  prod_005: "https://images.unsplash.com/photo-1517336714731-489689fd1ca8?auto=format&fit=crop&w=600&q=80",
+  prod_006: "https://images.unsplash.com/photo-1615663245857-ac93bb7c39e7?auto=format&fit=crop&w=600&q=80",
+  prod_007: "https://images.unsplash.com/photo-1587829741301-dc798b83add3?auto=format&fit=crop&w=600&q=80",
+  prod_008: "https://images.unsplash.com/photo-1588702547919-26089e690ecc?auto=format&fit=crop&w=600&q=80",
+  prod_009: "https://images.unsplash.com/photo-1545454675-3531b543be5d?auto=format&fit=crop&w=600&q=80",
+};
+
+const CATEGORY_FALLBACK_IMAGES: Record<string, string> = {
+  Audio: "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?auto=format&fit=crop&w=600&q=80",
+  Wearables: "https://images.unsplash.com/photo-1523275335684-37898b6baf30?auto=format&fit=crop&w=600&q=80",
+  Computers: "https://images.unsplash.com/photo-1496181133206-80ce9b88a853?auto=format&fit=crop&w=600&q=80",
+  Accessories: "https://images.unsplash.com/photo-1615663245857-ac93bb7c39e7?auto=format&fit=crop&w=600&q=80",
+  Electronics: "https://images.unsplash.com/photo-1550009158-9ebf69173e03?auto=format&fit=crop&w=600&q=80",
+};
 
 function ProductVisual({ product }: { product: Product }) {
-  const id = product.id;
+  const [imageError, setImageError] = useState(false);
+  const imageUrl =
+    product.image_url ||
+    PRODUCT_IMAGES[product.id] ||
+    CATEGORY_FALLBACK_IMAGES[product.category] ||
+    "https://images.unsplash.com/photo-1526738549149-8e07eca6c147?auto=format&fit=crop&w=600&q=80";
 
-  // Custom vector graphics matching FlowPay hardware catalog
-  if (id === "prod_001") {
-    // FlowBuds Pro
+  if (imageError) {
     return (
-      <div className="flex h-full w-full items-center justify-center bg-gradient-to-b from-[#F3F4F6] to-[#E5E7EB]">
-        <svg className="h-24 w-24 text-[#1E293B]" viewBox="0 0 100 100" fill="none" stroke="currentColor" strokeWidth="2.5">
-          <rect x="25" y="30" width="50" height="40" rx="12" fill="#FFFFFF" stroke="#D1D5DB" />
-          <circle cx="40" cy="50" r="6" fill="#2563EB" stroke="none" />
-          <circle cx="60" cy="50" r="6" fill="#2563EB" stroke="none" />
-          <path d="M40 38v4M60 38v4" stroke="#94A3B8" strokeWidth="2" strokeLinecap="round" />
-        </svg>
+      <div className="flex h-full w-full flex-col items-center justify-center bg-[#F9FAFB] p-4 text-[#9CA3AF]">
+        <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#EFF6FF] text-[#2563EB]">
+          <span className="font-heading text-lg font-bold">{product.name.charAt(0)}</span>
+        </div>
+        <span className="mt-2 text-xs font-semibold text-[#374151]">{product.name}</span>
       </div>
     );
   }
 
-  if (id === "prod_002") {
-    // FlowBuds Lite
-    return (
-      <div className="flex h-full w-full items-center justify-center bg-gradient-to-b from-[#F9FAFB] to-[#F3F4F6]">
-        <svg className="h-20 w-20 text-[#334155]" viewBox="0 0 100 100" fill="none" stroke="currentColor" strokeWidth="2.5">
-          <circle cx="35" cy="50" r="10" fill="#FFFFFF" stroke="#CBD5E1" />
-          <circle cx="65" cy="50" r="10" fill="#FFFFFF" stroke="#CBD5E1" />
-          <path d="M35 50v20M65 50v20" stroke="#64748B" strokeWidth="3" strokeLinecap="round" />
-        </svg>
-      </div>
-    );
-  }
-
-  if (id === "prod_003") {
-    // FlowWatch X
-    return (
-      <div className="flex h-full w-full items-center justify-center bg-gradient-to-b from-[#F3F4F6] to-[#E5E7EB]">
-        <svg className="h-24 w-24 text-[#0F172A]" viewBox="0 0 100 100" fill="none" stroke="currentColor" strokeWidth="2.5">
-          <rect x="42" y="10" width="16" height="80" rx="4" fill="#334155" stroke="none" />
-          <rect x="30" y="30" width="40" height="40" rx="10" fill="#0F172A" stroke="#475569" strokeWidth="3" />
-          <circle cx="50" cy="50" r="12" fill="none" stroke="#2563EB" strokeWidth="2" />
-          <path d="M50 50l4-4" stroke="#38BDF8" strokeWidth="2" strokeLinecap="round" />
-        </svg>
-      </div>
-    );
-  }
-
-  if (id === "prod_004") {
-    // FlowCharge 65W
-    return (
-      <div className="flex h-full w-full items-center justify-center bg-gradient-to-b from-[#F9FAFB] to-[#F3F4F6]">
-        <svg className="h-20 w-20 text-[#1E293B]" viewBox="0 0 100 100" fill="none" stroke="currentColor" strokeWidth="2.5">
-          <rect x="30" y="30" width="40" height="40" rx="8" fill="#FFFFFF" stroke="#CBD5E1" />
-          <path d="M42 20v10M58 20v10" stroke="#64748B" strokeWidth="3" strokeLinecap="round" />
-          <rect x="44" y="55" width="12" height="4" rx="1" fill="#2563EB" stroke="none" />
-        </svg>
-      </div>
-    );
-  }
-
-  if (id === "prod_005") {
-    // FlowBook Air
-    return (
-      <div className="flex h-full w-full items-center justify-center bg-gradient-to-b from-[#F3F4F6] to-[#E5E7EB]">
-        <svg className="h-28 w-28 text-[#0F172A]" viewBox="0 0 100 100" fill="none" stroke="currentColor" strokeWidth="2.5">
-          <rect x="25" y="25" width="50" height="32" rx="3" fill="#FFFFFF" stroke="#94A3B8" />
-          <path d="M15 62h70r-5 6H20l-5-6z" fill="#334155" stroke="#475569" />
-          <circle cx="50" cy="41" r="3" fill="#2563EB" stroke="none" />
-        </svg>
-      </div>
-    );
-  }
-
-  if (id === "prod_006") {
-    // FlowMouse M1
-    return (
-      <div className="flex h-full w-full items-center justify-center bg-gradient-to-b from-[#F9FAFB] to-[#F3F4F6]">
-        <svg className="h-20 w-20 text-[#1E293B]" viewBox="0 0 100 100" fill="none" stroke="currentColor" strokeWidth="2.5">
-          <path d="M35 30c0-10 7-15 15-15s15 5 15 15v35c0 10-7 15-15 15s-15-5-15-15V30z" fill="#FFFFFF" stroke="#CBD5E1" />
-          <path d="M50 15v18" stroke="#2563EB" strokeWidth="3" strokeLinecap="round" />
-        </svg>
-      </div>
-    );
-  }
-
-  if (id === "prod_007") {
-    // FlowKeyboard K1
-    return (
-      <div className="flex h-full w-full items-center justify-center bg-gradient-to-b from-[#F3F4F6] to-[#E5E7EB]">
-        <svg className="h-24 w-24 text-[#0F172A]" viewBox="0 0 100 100" fill="none" stroke="currentColor" strokeWidth="2">
-          <rect x="15" y="35" width="70" height="30" rx="4" fill="#FFFFFF" stroke="#CBD5E1" strokeWidth="2.5" />
-          <rect x="20" y="40" width="8" height="6" rx="1" fill="#2563EB" />
-          <rect x="31" y="40" width="8" height="6" rx="1" fill="#334155" />
-          <rect x="42" y="40" width="8" height="6" rx="1" fill="#334155" />
-          <rect x="53" y="40" width="8" height="6" rx="1" fill="#334155" />
-          <rect x="64" y="40" width="8" height="6" rx="1" fill="#334155" />
-          <rect x="30" y="52" width="40" height="6" rx="1" fill="#334155" />
-        </svg>
-      </div>
-    );
-  }
-
-  if (id === "prod_008") {
-    // FlowCam Mini
-    return (
-      <div className="flex h-full w-full items-center justify-center bg-gradient-to-b from-[#F9FAFB] to-[#F3F4F6]">
-        <svg className="h-20 w-20 text-[#1E293B]" viewBox="0 0 100 100" fill="none" stroke="currentColor" strokeWidth="2.5">
-          <rect x="25" y="35" width="50" height="25" rx="12" fill="#FFFFFF" stroke="#CBD5E1" />
-          <circle cx="50" cy="47.5" r="8" fill="#0F172A" stroke="#2563EB" strokeWidth="2" />
-          <path d="M50 60v15M35 75h30" stroke="#64748B" strokeWidth="3" strokeLinecap="round" />
-        </svg>
-      </div>
-    );
-  }
-
-  if (id === "prod_009") {
-    // FlowSpeaker Go
-    return (
-      <div className="flex h-full w-full items-center justify-center bg-gradient-to-b from-[#F3F4F6] to-[#E5E7EB]">
-        <svg className="h-24 w-24 text-[#0F172A]" viewBox="0 0 100 100" fill="none" stroke="currentColor" strokeWidth="2.5">
-          <rect x="35" y="20" width="30" height="60" rx="15" fill="#334155" stroke="#1E293B" strokeWidth="2" />
-          <circle cx="50" cy="38" r="6" fill="#FFFFFF" stroke="#2563EB" strokeWidth="2" />
-          <circle cx="50" cy="62" r="8" fill="#FFFFFF" stroke="#2563EB" strokeWidth="2" />
-        </svg>
-      </div>
-    );
-  }
-
-  // Clean neutral product placeholder for any external or missing images
   return (
-    <div className="flex h-full w-full flex-col items-center justify-center bg-[#F9FAFB] text-[#9CA3AF]">
-      <svg className="h-12 w-12 stroke-[1.5]" viewBox="0 0 24 24" fill="none" stroke="currentColor">
-        <rect x="3" y="3" width="18" height="18" rx="4" strokeLinecap="round" strokeLinejoin="round" />
-        <path d="M8.5 10a1.5 1.5 0 100-3 1.5 1.5 0 000 3zM21 15l-5-5L5 21" strokeLinecap="round" strokeLinejoin="round" />
-      </svg>
-      <span className="mt-2 text-[10px] font-medium text-[#6B7280]">Product Visual</span>
+    <div className="relative h-full w-full overflow-hidden bg-[#F3F4F6]">
+      <img
+        src={imageUrl}
+        alt={product.name}
+        onError={() => setImageError(true)}
+        className="h-full w-full object-cover object-center transition-transform duration-300 hover:scale-105"
+        loading="lazy"
+      />
     </div>
   );
 }
@@ -270,6 +180,10 @@ export default function AgentPage() {
   const [crossSellRecommendations, setCrossSellRecommendations] = useState<GrowthRecommendation[]>([]);
   const [crossSellLoading, setCrossSellLoading] = useState(false);
 
+  const [catalogProducts, setCatalogProducts] = useState<Product[]>([]);
+  const [catalogLoading, setCatalogLoading] = useState(false);
+  const [directBuyLoading, setDirectBuyLoading] = useState<string | null>(null);
+
   const examplePrompts = [
     "Gaming under ₹3,000",
     "Laptop for programming",
@@ -300,6 +214,28 @@ export default function AgentPage() {
   useEffect(() => {
     loadCrossSell();
   }, [cart.items.length, cart.subtotal]);
+
+  /* ================================================= */
+  /* LOAD CATALOG                                      */
+  /* ================================================= */
+  async function loadCatalog() {
+    setCatalogLoading(true);
+    try {
+      const res = await fetch(`${API_URL}/api/catalog/products`);
+      if (!res.ok) throw new Error("Unable to load product catalog");
+      const data = await res.json();
+      setCatalogProducts(Array.isArray(data.products) ? data.products : []);
+    } catch (err) {
+      console.error("Catalog load error:", err);
+      setCatalogProducts([]);
+    } finally {
+      setCatalogLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    loadCatalog();
+  }, []);
 
   /* ================================================= */
   /* SEND MESSAGE                                      */
@@ -552,6 +488,114 @@ export default function AgentPage() {
     }
   }
 
+  /* ================================================= */
+  /* DIRECT BUY                                        */
+  /* ================================================= */
+  async function handleDirectBuy(product: Product) {
+    if (product.inventory <= 0) return;
+
+    setDirectBuyLoading(product.id);
+    setError("");
+    setPaymentStatus("");
+
+    try {
+      /* 1. Add to cart */
+      const addRes = await fetch(`${API_URL}/api/cart/add`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ product_id: product.id, quantity: 1 }),
+      });
+      const addData = await addRes.json();
+      if (!addRes.ok) throw new Error(addData.detail || "Unable to add product to cart");
+      setCart(addData);
+      setCartMessage(`${product.name} added to cart`);
+      setTimeout(() => setCartMessage(""), 3000);
+
+      /* 2. Set attribution to direct_checkout */
+      setAttributionSource("direct_checkout");
+
+      /* 3. Create checkout order with direct_checkout attribution */
+      const razorpayLoaded = await loadRazorpayScript();
+      if (!razorpayLoaded) {
+        throw new Error("Unable to load Razorpay Checkout. Check your internet connection.");
+      }
+
+      const createResponse = await fetch(`${API_URL}/api/checkout/create`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ attribution_source: "direct_checkout" }),
+      });
+
+      const createData = await createResponse.json();
+      if (!createResponse.ok) {
+        throw new Error(createData.detail || "Unable to create checkout order.");
+      }
+
+      const checkoutData = createData as CheckoutResponse;
+
+      /* 4. Open Razorpay */
+      const options = {
+        key: checkoutData.key_id,
+        amount: checkoutData.amount,
+        currency: checkoutData.currency,
+        name: "FlowPay AI",
+        description: "Direct Checkout – " + product.name,
+        order_id: checkoutData.razorpay_order_id,
+
+        handler: async (payment: RazorpayPaymentResponse) => {
+          try {
+            setPaymentStatus("Verifying payment with Razorpay...");
+
+            const verifyResponse = await fetch(`${API_URL}/api/checkout/verify`, {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                order_id: checkoutData.order_id,
+                razorpay_order_id: payment.razorpay_order_id,
+                razorpay_payment_id: payment.razorpay_payment_id,
+                razorpay_signature: payment.razorpay_signature,
+              }),
+            });
+
+            const verifyData = await verifyResponse.json();
+            if (!verifyResponse.ok) {
+              throw new Error(verifyData.detail || "Payment verification failed.");
+            }
+
+            setPaymentStatus("Payment successful! Your FlowPay order has been confirmed.");
+            await loadCart();
+            await loadCatalog();
+          } catch (err) {
+            console.error("Payment verification error:", err);
+            setError(err instanceof Error ? err.message : "Payment verification failed.");
+            setPaymentStatus("");
+          }
+        },
+
+        modal: {
+          ondismiss: () => {
+            setPaymentStatus("");
+          },
+        },
+
+        theme: { color: "#2563EB" },
+      };
+
+      const razorpay = new window.Razorpay(options);
+      razorpay.on("payment.failed", (res: any) => {
+        console.error("Razorpay payment failed:", res);
+        setError(res?.error?.description || "Payment failed. Please try again.");
+        setPaymentStatus("");
+      });
+      razorpay.open();
+    } catch (err) {
+      console.error("Direct buy error:", err);
+      setError(err instanceof Error ? err.message : "Unable to complete direct checkout.");
+    } finally {
+      setDirectBuyLoading(null);
+    }
+  }
+
   return (
     <div className="min-h-screen bg-[#F7F8FA] text-[#111827] selection:bg-[#2563EB]/15 selection:text-[#1E40AF]">
       <div className="relative z-10 flex min-h-screen flex-col">
@@ -673,6 +717,94 @@ export default function AgentPage() {
             {error && (
               <div className="mt-4 rounded-lg border border-[#FCA5A5] bg-[#FEF2F2] p-3 text-xs font-semibold text-[#B91C1C]">
                 ⚠ {error}
+              </div>
+            )}
+          </div>
+
+          {/* ================= DIRECT CHECKOUT — BROWSE PRODUCTS ================= */}
+          <div className="mt-8 fintech-card p-5 shadow-sm sm:p-6">
+            <div className="mb-1 flex items-center justify-between">
+              <div>
+                <h2 className="font-heading text-base font-bold text-[#111827]">Direct Checkout</h2>
+                <p className="mt-0.5 text-xs text-[#6B7280]">Browse products and purchase directly</p>
+              </div>
+              <span className="rounded-full border border-[#DBEAFE] bg-[#EFF6FF] px-2.5 py-0.5 text-[10px] font-semibold text-[#1E40AF]">
+                Attribution: direct_checkout
+              </span>
+            </div>
+
+            {catalogLoading ? (
+              <div className="mt-6 flex items-center gap-2 text-xs text-[#6B7280]">
+                <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-[#D1D5DB] border-t-[#2563EB]" />
+                Loading product catalog…
+              </div>
+            ) : catalogProducts.length === 0 ? (
+              <div className="mt-6 rounded-lg border border-[#E5E7EB] bg-[#F9FAFB] p-6 text-center text-xs text-[#6B7280]">
+                No products available in the catalog.
+              </div>
+            ) : (
+              <div className="mt-4 grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                {catalogProducts.map((product) => {
+                  const outOfStock = product.inventory <= 0;
+                  const isBuying = directBuyLoading === product.id;
+                  return (
+                    <div
+                      key={product.id}
+                      className="flex h-full flex-col overflow-hidden rounded-xl border border-[#E5E7EB] bg-white shadow-sm transition hover:shadow-md"
+                    >
+                      {/* Fixed-height image container */}
+                      <div className="relative h-40 w-full shrink-0 border-b border-[#E5E7EB] bg-[#F9FAFB]">
+                        <img
+                          src={
+                            product.image_url ||
+                            PRODUCT_IMAGES[product.id] ||
+                            CATEGORY_FALLBACK_IMAGES[product.category] ||
+                            "https://images.unsplash.com/photo-1526738549149-8e07eca6c147?auto=format&fit=crop&w=600&q=80"
+                          }
+                          alt={product.name}
+                          className="h-full w-full object-cover object-center"
+                          loading="lazy"
+                        />
+                        <span className="absolute top-2 left-2 rounded border border-[#BFDBFE] bg-white/90 px-1.5 py-0.5 text-[10px] font-bold text-[#1E40AF]">
+                          {product.category}
+                        </span>
+                      </div>
+
+                      {/* Content — flex column pushes button to bottom */}
+                      <div className="flex flex-1 flex-col justify-between p-3">
+                        <div>
+                          <h4 className="text-sm font-bold leading-tight text-[#111827]">{product.name}</h4>
+                          <p className="mt-0.5 text-[11px] leading-snug text-[#6B7280] line-clamp-2">
+                            {product.description}
+                          </p>
+                          <div className="mt-2 flex items-baseline justify-between">
+                            <span className="font-mono text-sm font-extrabold text-[#111827]">
+                              ₹{product.price.toLocaleString("en-IN")}
+                            </span>
+                            <span
+                              className={`text-[11px] font-semibold ${outOfStock ? "text-[#B91C1C]" : "text-[#047857]"}`}
+                            >
+                              {outOfStock ? "Out of Stock" : `${product.inventory} in stock`}
+                            </span>
+                          </div>
+                        </div>
+
+                        <button
+                          type="button"
+                          disabled={outOfStock || isBuying}
+                          onClick={() => handleDirectBuy(product)}
+                          className="mt-3 w-full rounded-lg bg-[#2563EB] py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-[#1D4ED8] disabled:opacity-40"
+                        >
+                          {outOfStock
+                            ? "Out of Stock"
+                            : isBuying
+                              ? "Processing…"
+                              : "Buy Direct"}
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             )}
           </div>
@@ -833,11 +965,20 @@ export default function AgentPage() {
               <div className="mt-3 divide-y divide-[#E5E7EB]">
                 {cart.items.map((item) => (
                   <div key={item.product_id} className="flex items-center justify-between py-3">
-                    <div>
-                      <p className="text-xs font-bold text-[#111827]">{item.name}</p>
-                      <p className="font-mono text-[11px] text-[#6B7280]">
-                        ₹{item.price.toLocaleString("en-IN")} × {item.quantity}
-                      </p>
+                    <div className="flex items-center gap-3">
+                      <div className="h-10 w-10 shrink-0 overflow-hidden rounded bg-[#F3F4F6]">
+                        <img
+                          src={PRODUCT_IMAGES[item.product_id] || "https://images.unsplash.com/photo-1526738549149-8e07eca6c147?auto=format&fit=crop&w=600&q=80"}
+                          alt={item.name}
+                          className="h-full w-full object-cover"
+                        />
+                      </div>
+                      <div>
+                        <p className="text-xs font-bold text-[#111827]">{item.name}</p>
+                        <p className="font-mono text-[11px] text-[#6B7280]">
+                          ₹{item.price.toLocaleString("en-IN")} × {item.quantity}
+                        </p>
+                      </div>
                     </div>
 
                     <div className="flex items-center gap-4">
@@ -874,20 +1015,31 @@ export default function AgentPage() {
                   ) : (
                     <div className="grid gap-3 sm:grid-cols-2">
                       {crossSellRecommendations.map((rec) => (
-                        <div key={rec.product.id} className="rounded-lg border border-[#E5E7EB] bg-white p-3 shadow-sm">
-                          <div className="flex justify-between text-xs font-bold">
-                            <span className="text-[#111827]">{rec.product.name}</span>
-                            <span className="font-mono text-[#2563EB]">₹{rec.product.price.toLocaleString("en-IN")}</span>
+                        <div key={rec.product.id} className="flex gap-3 rounded-lg border border-[#E5E7EB] bg-white p-3 shadow-sm">
+                          <div className="h-16 w-16 shrink-0 overflow-hidden rounded-md bg-[#F3F4F6]">
+                            <img
+                              src={rec.product.image_url || PRODUCT_IMAGES[rec.product.id] || "https://images.unsplash.com/photo-1526738549149-8e07eca6c147?auto=format&fit=crop&w=600&q=80"}
+                              alt={rec.product.name}
+                              className="h-full w-full object-cover"
+                            />
                           </div>
-                          <p className="mt-1 text-[11px] text-[#6B7280]">{rec.reason}</p>
-                          <button
-                            type="button"
-                            disabled={cartLoading}
-                            onClick={() => handleAddToCart(rec.product, "cross_sell")}
-                            className="mt-2 w-full rounded bg-[#2563EB] py-1.5 text-xs font-semibold text-white hover:bg-[#1D4ED8] disabled:opacity-40"
-                          >
-                            + Add Cross-sell
-                          </button>
+                          <div className="flex-1 min-w-0 flex flex-col justify-between">
+                            <div>
+                              <div className="flex justify-between text-xs font-bold">
+                                <span className="truncate text-[#111827]">{rec.product.name}</span>
+                                <span className="font-mono text-[#2563EB] shrink-0">₹{rec.product.price.toLocaleString("en-IN")}</span>
+                              </div>
+                              <p className="mt-0.5 text-[11px] text-[#6B7280] line-clamp-1">{rec.reason}</p>
+                            </div>
+                            <button
+                              type="button"
+                              disabled={cartLoading}
+                              onClick={() => handleAddToCart(rec.product, "cross_sell")}
+                              className="mt-1.5 w-full rounded bg-[#2563EB] py-1 text-xs font-semibold text-white hover:bg-[#1D4ED8] disabled:opacity-40"
+                            >
+                              + Add Cross-sell
+                            </button>
+                          </div>
                         </div>
                       ))}
                     </div>

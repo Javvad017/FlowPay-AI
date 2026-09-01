@@ -102,6 +102,18 @@ type GrowthIntelligence = {
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
+const PRODUCT_IMAGES: Record<string, string> = {
+  prod_001: "https://images.unsplash.com/photo-1590658268037-6bf12165a8df?auto=format&fit=crop&w=600&q=80",
+  prod_002: "https://images.unsplash.com/photo-1606220588913-b3aacb4d2f46?auto=format&fit=crop&w=600&q=80",
+  prod_003: "https://images.unsplash.com/photo-1508685096489-7aacd43bd3b1?auto=format&fit=crop&w=600&q=80",
+  prod_004: "https://images.unsplash.com/photo-1583863788434-e58a36330cf0?auto=format&fit=crop&w=600&q=80",
+  prod_005: "https://images.unsplash.com/photo-1517336714731-489689fd1ca8?auto=format&fit=crop&w=600&q=80",
+  prod_006: "https://images.unsplash.com/photo-1615663245857-ac93bb7c39e7?auto=format&fit=crop&w=600&q=80",
+  prod_007: "https://images.unsplash.com/photo-1587829741301-dc798b83add3?auto=format&fit=crop&w=600&q=80",
+  prod_008: "https://images.unsplash.com/photo-1588702547919-26089e690ecc?auto=format&fit=crop&w=600&q=80",
+  prod_009: "https://images.unsplash.com/photo-1545454675-3531b543be5d?auto=format&fit=crop&w=600&q=80",
+};
+
 function formatMoney(value: number) {
   return `₹${value.toLocaleString("en-IN")}`;
 }
@@ -178,8 +190,11 @@ function RevenueAttributionChart({ items }: { items: BarItem[] }) {
         })}
 
         {items.map((item, idx) => {
-          const pct = total > 0 ? item.revenue / maxRevenue : 0;
-          const barW = Math.max(pct * barAreaW, item.revenue > 0 ? 3 : 0);
+          const pct = total > 0 ? item.revenue / total : 0;
+          const barW = Math.max(
+            pct * barAreaW,
+            item.revenue > 0 ? 3 : 0
+          );
           const y = paddingTop + idx * rowH;
           const barY = y + rowH * 0.25;
           const barH = rowH * 0.5;
@@ -223,6 +238,9 @@ function RevenueAttributionChart({ items }: { items: BarItem[] }) {
                   rx="3"
                   fill={item.fill}
                   opacity="0.9"
+                  style={{
+                    transition: "width 700ms ease-in-out",
+                  }}
                 />
               )}
 
@@ -568,11 +586,24 @@ export default function Home() {
         merchantInsightsResponse,
         growthIntelligenceResponse,
       ] = await Promise.all([
-        fetch(`${API_URL}/api/dashboard/stats`),
-        fetch(`${API_URL}/api/dashboard/activity`),
-        fetch(`${API_URL}/api/dashboard/revenue-intelligence`),
-        fetch(`${API_URL}/api/dashboard/merchant-insights`),
-        fetch(`${API_URL}/api/growth/intelligence`),
+        fetch(`${API_URL}/api/dashboard/stats`, {
+          cache: "no-store",
+        }),
+        fetch(`${API_URL}/api/dashboard/activity`, {
+          cache: "no-store",
+        }),
+
+        fetch(`${API_URL}/api/dashboard/revenue-intelligence`, {
+          cache: "no-store",
+        }),
+
+        fetch(`${API_URL}/api/dashboard/merchant-insights`, {
+          cache: "no-store",
+        }),
+
+        fetch(`${API_URL}/api/growth/intelligence`, {
+          cache: "no-store",
+        }),
       ]);
 
       if (
@@ -609,28 +640,200 @@ export default function Home() {
   const recoverCheckout = async (orderId: string) => {
     setRecoveringOrderId(orderId);
     setRecoveryMessage(null);
+    setError(false);
 
     try {
-      const response = await fetch(`${API_URL}/api/growth/recovery/${orderId}`, {
-        method: "POST",
-      });
+      // --------------------------------------
+      // Load Razorpay Checkout
+      // --------------------------------------
+
+      if (!window.Razorpay) {
+        const script = document.createElement("script");
+
+        script.src =
+          "https://checkout.razorpay.com/v1/checkout.js";
+
+        script.async = true;
+
+        await new Promise<void>((resolve, reject) => {
+          script.onload = () => resolve();
+          script.onerror = () =>
+            reject(
+              new Error(
+                "Unable to load Razorpay Checkout."
+              )
+            );
+
+          document.body.appendChild(script);
+        });
+      }
+
+      // --------------------------------------
+      // Initiate recovery
+      // --------------------------------------
+
+      const response = await fetch(
+        `${API_URL}/api/growth/recovery/${orderId}`,
+        {
+          method: "POST",
+        }
+      );
 
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data?.detail || "Failed to recover checkout");
+        throw new Error(
+          data?.detail ||
+          "Failed to recover checkout"
+        );
       }
 
-      setRecoveryMessage(data?.message || "Recovery action initiated successfully.");
-      await loadDashboard();
-    } catch (err) {
-      console.error("Recovery error:", err);
-      setRecoveryMessage(err instanceof Error ? err.message : "Failed to initiate recovery.");
-    } finally {
+      // --------------------------------------
+      // Open existing Razorpay order
+      // --------------------------------------
+
+      const options = {
+        key: data.key_id,
+        amount: data.amount,
+        currency: data.currency,
+
+        name: "FlowPay AI",
+
+        description:
+          "Checkout Recovery",
+
+        order_id:
+          data.razorpay_order_id,
+
+        handler: async (
+          payment: {
+            razorpay_payment_id: string;
+            razorpay_order_id: string;
+            razorpay_signature: string;
+          }
+        ) => {
+
+          try {
+
+            setRecoveryMessage(
+              "Payment received. Verifying..."
+            );
+
+            const verifyResponse =
+              await fetch(
+                `${API_URL}/api/checkout/verify`,
+                {
+                  method: "POST",
+
+                  headers: {
+                    "Content-Type":
+                      "application/json",
+                  },
+
+                  body: JSON.stringify({
+                    order_id:
+                      data.order_id,
+
+                    razorpay_order_id:
+                      payment.razorpay_order_id,
+
+                    razorpay_payment_id:
+                      payment.razorpay_payment_id,
+
+                    razorpay_signature:
+                      payment.razorpay_signature,
+                  }),
+                }
+              );
+
+            const verifyData =
+              await verifyResponse.json();
+
+            if (!verifyResponse.ok) {
+              throw new Error(
+                verifyData?.detail ||
+                "Payment verification failed."
+              );
+            }
+
+            setRecoveryMessage(
+              "Checkout recovered successfully. Payment verified."
+            );
+
+            // Refresh dashboard/revenue data
+            await loadDashboard();
+
+          } catch (error) {
+
+            console.error(
+              "Recovery payment verification error:",
+              error
+            );
+
+            setRecoveryMessage(
+              error instanceof Error
+                ? error.message
+                : "Payment verification failed."
+            );
+
+          } finally {
+
+            setRecoveringOrderId(null);
+
+          }
+        },
+
+        modal: {
+          ondismiss: () => {
+            setRecoveringOrderId(null);
+            setRecoveryMessage(null);
+          },
+        },
+
+        theme: {
+          color: "#2563EB",
+        },
+      };
+
+      const razorpay =
+        new window.Razorpay(options);
+
+      razorpay.on(
+        "payment.failed",
+        (result: any) => {
+
+          console.error(
+            "Recovery payment failed:",
+            result
+          );
+
+          setRecoveryMessage(
+            result?.error?.description ||
+            "Payment failed. Please try again."
+          );
+
+          setRecoveringOrderId(null);
+        }
+      );
+
+      razorpay.open();
+
+    } catch (error) {
+
+      console.error(
+        "Recovery error:",
+        error
+      );
+
+      setRecoveryMessage(
+        error instanceof Error
+          ? error.message
+          : "Failed to initiate recovery."
+      );
+
       setRecoveringOrderId(null);
     }
   };
-
   const activateCrossSell = async () => {
     setCrossSellLoading(true);
     setCrossSellMessage(null);
@@ -664,6 +867,23 @@ export default function Home() {
 
   useEffect(() => {
     loadDashboard();
+
+    // Refresh attribution data whenever the user navigates back to
+    // this tab (e.g. after completing a Direct Checkout on /agent).
+    function handleVisibilityChange() {
+      if (document.visibilityState === "visible") {
+        loadDashboard();
+      }
+    }
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+
+    return () => {
+      document.removeEventListener(
+        "visibilitychange",
+        handleVisibilityChange
+      );
+    };
   }, []);
 
   const showOverview = activeTab === "all" || activeTab === "overview";
@@ -1206,42 +1426,54 @@ export default function Home() {
                           {crossSellRecommendations.map((rec, index) => {
                             const p = rec?.product;
                             if (!p) return null;
+                            const imgSrc = p.image_url || PRODUCT_IMAGES[p.id] || "https://images.unsplash.com/photo-1526738549149-8e07eca6c147?auto=format&fit=crop&w=600&q=80";
                             return (
                               <div
                                 key={`${p.id}-${index}`}
-                                className="rounded-lg border border-[#E5E7EB] bg-white p-3 shadow-sm"
+                                className="flex gap-3 rounded-lg border border-[#E5E7EB] bg-white p-3 shadow-sm"
                               >
-                                <div className="flex items-start justify-between gap-2">
-                                  <h5 className="text-xs font-bold text-[#111827]">{p.name}</h5>
-                                  <span className="font-mono text-xs font-bold text-[#2563EB] shrink-0">
-                                    {formatMoney(p.price)}
-                                  </span>
+                                <div className="h-16 w-16 shrink-0 overflow-hidden rounded-md bg-[#F3F4F6]">
+                                  <img
+                                    src={imgSrc}
+                                    alt={p.name}
+                                    className="h-full w-full object-cover"
+                                  />
                                 </div>
-                                <p className="mt-1 text-[11px] text-[#6B7280]">{rec.reason}</p>
-                                <button
-                                  type="button"
-                                  onClick={async () => {
-                                    try {
-                                      const response = await fetch(`${API_URL}/api/cart/add`, {
-                                        method: "POST",
-                                        headers: { "Content-Type": "application/json" },
-                                        body: JSON.stringify({ product_id: p.id, quantity: 1 }),
-                                      });
-                                      const data = await response.json();
-                                      if (!response.ok)
-                                        throw new Error(data?.detail || "Failed to add product to cart");
-                                      window.alert(`${p.name} added to cart.`);
-                                      await loadDashboard();
-                                    } catch (err) {
-                                      window.alert(
-                                        err instanceof Error ? err.message : "Failed to add to cart."
-                                      );
-                                    }
-                                  }}
-                                  className="mt-2 w-full rounded bg-[#2563EB] py-1.5 text-xs font-semibold text-white transition hover:bg-[#1D4ED8]"
-                                >
-                                  + Add to Cart
-                                </button>
+                                <div className="flex-1 min-w-0 flex flex-col justify-between">
+                                  <div>
+                                    <div className="flex items-start justify-between gap-1">
+                                      <h5 className="truncate text-xs font-bold text-[#111827]">{p.name}</h5>
+                                      <span className="font-mono text-xs font-bold text-[#2563EB] shrink-0">
+                                        {formatMoney(p.price)}
+                                      </span>
+                                    </div>
+                                    <p className="mt-0.5 text-[11px] text-[#6B7280] line-clamp-1">{rec.reason}</p>
+                                  </div>
+                                  <button
+                                    type="button"
+                                    onClick={async () => {
+                                      try {
+                                        const response = await fetch(`${API_URL}/api/cart/add`, {
+                                          method: "POST",
+                                          headers: { "Content-Type": "application/json" },
+                                          body: JSON.stringify({ product_id: p.id, quantity: 1 }),
+                                        });
+                                        const data = await response.json();
+                                        if (!response.ok)
+                                          throw new Error(data?.detail || "Failed to add product to cart");
+                                        window.alert(`${p.name} added to cart.`);
+                                        await loadDashboard();
+                                      } catch (err) {
+                                        window.alert(
+                                          err instanceof Error ? err.message : "Failed to add to cart."
+                                        );
+                                      }
+                                    }}
+                                    className="mt-1.5 w-full rounded bg-[#2563EB] py-1 text-xs font-semibold text-white transition hover:bg-[#1D4ED8]"
+                                  >
+                                    + Add to Cart
+                                  </button>
+                                </div>
                               </div>
                             );
                           })}
@@ -1433,11 +1665,20 @@ export default function Home() {
                             key={p.product_id}
                             className="flex items-center justify-between rounded border border-[#E5E7EB] bg-[#F9FAFB] p-2.5"
                           >
-                            <div>
-                              <p className="text-xs font-bold text-[#111827]">
-                                #{idx + 1} {p.name}
-                              </p>
-                              <p className="text-[11px] text-[#9CA3AF]">{p.units} units</p>
+                            <div className="flex items-center gap-2.5">
+                              <div className="h-8 w-8 shrink-0 overflow-hidden rounded bg-[#E5E7EB]">
+                                <img
+                                  src={PRODUCT_IMAGES[p.product_id] || "https://images.unsplash.com/photo-1526738549149-8e07eca6c147?auto=format&fit=crop&w=600&q=80"}
+                                  alt={p.name}
+                                  className="h-full w-full object-cover"
+                                />
+                              </div>
+                              <div>
+                                <p className="text-xs font-bold text-[#111827]">
+                                  #{idx + 1} {p.name}
+                                </p>
+                                <p className="text-[11px] text-[#9CA3AF]">{p.units} units</p>
+                              </div>
                             </div>
                             <span className="font-mono text-xs font-bold text-[#111827]">
                               {formatMoney(p.revenue)}
