@@ -1,11 +1,31 @@
 from fastapi import APIRouter, HTTPException
 from typing import Optional
 
+from app.services.inventory_service import get_inventory, get_all_inventory
+
 
 router = APIRouter(
     prefix="/api/catalog",
     tags=["Catalog"],
 )
+
+
+def _with_live_inventory(product: dict) -> dict:
+    """Return a copy of *product* with inventory from SQLite."""
+    copy = dict(product)
+    copy["inventory"] = get_inventory(product["id"])
+    return copy
+
+
+def _enrich_list(products: list[dict]) -> list[dict]:
+    """Batch-enrich a product list with live inventory."""
+    all_inv = {row["product_id"]: row["quantity"] for row in get_all_inventory()}
+    result = []
+    for p in products:
+        copy = dict(p)
+        copy["inventory"] = all_inv.get(p["id"], p.get("inventory", 0))
+        result.append(copy)
+    return result
 
 
 PRODUCTS = [
@@ -248,9 +268,11 @@ def search_products(
             if product["price"] <= max_price
         ]
 
+    enriched = _enrich_list(results)
+
     return {
-        "count": len(results),
-        "products": results,
+        "count": len(enriched),
+        "products": enriched,
     }
 
 
@@ -271,7 +293,7 @@ def get_product(product_id: str):
             detail="Product not found",
         )
 
-    return product
+    return _with_live_inventory(product)
 
 
 @router.get("/products/{product_id}/inventory")
@@ -291,8 +313,10 @@ def check_inventory(product_id: str):
             detail="Product not found",
         )
 
+    live_qty = get_inventory(product_id)
+
     return {
         "product_id": product_id,
-        "inventory": product["inventory"],
-        "available": product["inventory"] > 0,
+        "inventory": live_qty,
+        "available": live_qty > 0,
     }

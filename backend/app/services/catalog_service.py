@@ -1,6 +1,7 @@
 from typing import Any
 
 from app.api.catalog import PRODUCTS
+from app.services.inventory_service import get_all_inventory
 
 
 def search_catalog(
@@ -24,7 +25,17 @@ def search_catalog(
     6. Inventory
     """
 
-    candidates = PRODUCTS.copy()
+    # Fetch live inventory once for the whole call
+    live_inv = {
+        row["product_id"]: row["quantity"]
+        for row in get_all_inventory()
+    }
+
+    # Make product copies with live inventory
+    candidates = [
+        {**p, "inventory": live_inv.get(p["id"], p.get("inventory", 0))}
+        for p in PRODUCTS
+    ]
 
     # ==========================================
     # 1. HARD PRICE FILTER

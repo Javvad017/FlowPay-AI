@@ -32,6 +32,9 @@ def get_connection() -> sqlite3.Connection:
 
 def init_database() -> None:
 
+    # Import here to avoid circular imports at module load time
+    from app.api.catalog import PRODUCTS
+
     connection = get_connection()
 
     cursor = connection.cursor()
@@ -113,6 +116,42 @@ def init_database() -> None:
         """
     )
 
+    # ------------------------------------------
+    # Inventory
+    # ------------------------------------------
+    # quantity        = live stock (decrements on payment)
+    # initial_quantity = original stock (used by Reset Demo)
+    # INSERT OR IGNORE ensures we never overwrite live stock
+    # when the backend restarts.
+    # ------------------------------------------
+
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS inventory (
+            product_id       TEXT PRIMARY KEY,
+            quantity         INTEGER NOT NULL,
+            initial_quantity INTEGER NOT NULL
+        )
+        """
+    )
+
+    for product in PRODUCTS:
+        cursor.execute(
+            """
+            INSERT OR IGNORE INTO inventory (
+                product_id,
+                quantity,
+                initial_quantity
+            )
+            VALUES (?, ?, ?)
+            """,
+            (
+                product["id"],
+                product["inventory"],
+                product["inventory"],
+            ),
+        )
+
     connection.commit()
     connection.close()
 
@@ -155,6 +194,14 @@ def reset_demo_data() -> None:
 
     cursor.execute(
         "DELETE FROM sqlite_sequence WHERE name = 'cart_items'"
+    )
+
+    # Restore inventory to original quantities
+    cursor.execute(
+        """
+        UPDATE inventory
+        SET quantity = initial_quantity
+        """
     )
 
     connection.commit()

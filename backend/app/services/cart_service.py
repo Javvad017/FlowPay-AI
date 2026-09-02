@@ -4,6 +4,7 @@ from typing import Any
 
 from app.api.catalog import PRODUCTS
 from app.services.database import get_connection
+from app.services.inventory_service import get_inventory
 
 
 
@@ -46,7 +47,9 @@ def add_to_cart(
             "Product not found"
         )
 
-    if product.get("inventory", 0) < quantity:
+    live_stock = get_inventory(product_id)
+
+    if live_stock < quantity:
         raise ValueError(
             "Not enough inventory"
         )
@@ -82,7 +85,7 @@ def add_to_cart(
                 existing_quantity + quantity
             )
 
-            if product.get("inventory", 0) < new_quantity:
+            if live_stock < new_quantity:
                 raise ValueError(
                     "Not enough inventory"
                 )

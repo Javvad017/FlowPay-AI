@@ -11,6 +11,7 @@ from app.services.cart_service import (
     clear_cart,
 )
 from app.services.database import get_connection
+from app.services.inventory_service import decrement_inventory
 
 
 load_dotenv()
@@ -368,6 +369,30 @@ def verify_payment(
             raise ValueError(
                 "Payment signature verification failed"
             )
+
+        # --------------------------------------
+        # Fetch ordered items for inventory deduction
+        # --------------------------------------
+
+        cursor.execute(
+            """
+            SELECT product_id, quantity
+            FROM order_items
+            WHERE order_id = ?
+            """,
+            (internal_order_id,),
+        )
+
+        order_items = [
+            dict(row) for row in cursor.fetchall()
+        ]
+
+        # --------------------------------------
+        # Decrement inventory atomically
+        # (uses same connection = same transaction)
+        # --------------------------------------
+
+        decrement_inventory(order_items, connection=connection)
 
         # --------------------------------------
         # Mark order as paid
