@@ -96,6 +96,23 @@ def init_database() -> None:
         """
     )
 
+    # ------------------------------------------
+    # Cart items
+    # ------------------------------------------
+
+    cursor.execute(
+        """
+        CREATE TABLE IF NOT EXISTS cart_items (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            product_id TEXT NOT NULL UNIQUE,
+            name TEXT NOT NULL,
+            price REAL NOT NULL,
+            quantity INTEGER NOT NULL,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP
+        )
+        """
+    )
+
     connection.commit()
     connection.close()
 
@@ -123,6 +140,10 @@ def reset_demo_data() -> None:
         "DELETE FROM orders"
     )
 
+    cursor.execute(
+    "DELETE FROM cart_items"
+    )
+
     # Reset SQLite auto-increment counters
     cursor.execute(
         "DELETE FROM sqlite_sequence WHERE name = 'order_items'"
@@ -130,6 +151,10 @@ def reset_demo_data() -> None:
 
     cursor.execute(
         "DELETE FROM sqlite_sequence WHERE name = 'recovery_attempts'"
+    )
+
+    cursor.execute(
+        "DELETE FROM sqlite_sequence WHERE name = 'cart_items'"
     )
 
     connection.commit()

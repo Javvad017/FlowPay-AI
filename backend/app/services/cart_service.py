@@ -6,45 +6,6 @@ from app.api.catalog import PRODUCTS
 from app.services.database import get_connection
 
 
-# ==========================================
-# SQLite Cart
-# ==========================================
-
-def _ensure_cart_table() -> None:
-    """
-    Create the cart table if it does not already exist.
-
-    FlowPay currently uses a single server-side cart for the
-    prototype/demo merchant environment.
-    """
-
-    connection = get_connection()
-
-    try:
-        cursor = connection.cursor()
-
-        cursor.execute(
-            """
-            CREATE TABLE IF NOT EXISTS cart_items (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                product_id TEXT NOT NULL UNIQUE,
-                name TEXT NOT NULL,
-                price REAL NOT NULL,
-                quantity INTEGER NOT NULL,
-                created_at TEXT DEFAULT CURRENT_TIMESTAMP
-            )
-            """
-        )
-
-        connection.commit()
-
-    finally:
-        connection.close()
-
-
-# Make sure the table exists when this service is imported.
-_ensure_cart_table()
-
 
 # ==========================================
 # Find Product

@@ -1,6 +1,8 @@
 "use client";
 
 import { FormEvent, useEffect, useState } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import Link from "next/link";
 
 declare global {
@@ -264,6 +266,7 @@ export default function AgentPage() {
 
       const data: AgentResponse = await res.json();
       setResponse(data);
+      await loadCart();
     } catch (err) {
       console.error("Agent error:", err);
       setError("Unable to connect to FlowPay Agent. Make sure FastAPI is running on localhost:8000.");
@@ -722,7 +725,8 @@ export default function AgentPage() {
           </div>
 
           {/* ================= DIRECT CHECKOUT — BROWSE PRODUCTS ================= */}
-          <div className="mt-8 fintech-card p-5 shadow-sm sm:p-6">
+          {/* Hidden while an AI Agent search result is active */}
+          {!response && !loading && <div className="mt-8 fintech-card p-5 shadow-sm sm:p-6">
             <div className="mb-1 flex items-center justify-between">
               <div>
                 <h2 className="font-heading text-base font-bold text-[#111827]">Direct Checkout</h2>
@@ -807,7 +811,7 @@ export default function AgentPage() {
                 })}
               </div>
             )}
-          </div>
+          </div>}
 
           {/* ================= AI REASONING & RESPONSE ================= */}
           {response && !loading && (
@@ -824,9 +828,68 @@ export default function AgentPage() {
                   </div>
                 </div>
 
-                <p className="mt-4 whitespace-pre-line text-xs leading-relaxed text-[#374151] sm:text-sm">
-                  {response.message}
-                </p>
+                <div className="mt-5 text-[15px] leading-7 text-[#374151]">
+                  <ReactMarkdown
+                    remarkPlugins={[remarkGfm]}
+                    components={{
+                      p: ({ children }) => (
+                        <p className="mb-4 last:mb-0 text-[#374151] leading-relaxed">
+                          {children}
+                        </p>
+                      ),
+
+                      strong: ({ children }) => (
+                        <strong className="font-bold text-[#111827]">
+                          {children}
+                        </strong>
+                      ),
+
+                      em: ({ children }) => (
+                        <em className="italic text-[#374151]">
+                          {children}
+                        </em>
+                      ),
+
+                      ul: ({ children }) => (
+                        <ul className="mb-4 ml-6 list-disc space-y-2 text-[#374151]">
+                          {children}
+                        </ul>
+                      ),
+
+                      ol: ({ children }) => (
+                        <ol className="mb-4 ml-6 list-decimal space-y-3 text-[#374151]">
+                          {children}
+                        </ol>
+                      ),
+
+                      li: ({ children }) => (
+                        <li className="pl-1 text-[#374151] font-normal leading-relaxed">
+                          {children}
+                        </li>
+                      ),
+
+                      h1: ({ children }) => (
+                        <h1 className="mb-3 text-lg font-bold text-[#111827]">
+                          {children}
+                        </h1>
+                      ),
+
+                      h2: ({ children }) => (
+                        <h2 className="mb-3 text-base font-bold text-[#111827]">
+                          {children}
+                        </h2>
+                      ),
+
+                      h3: ({ children }) => (
+                        <h3 className="mb-2 text-sm font-bold text-[#111827]">
+                          {children}
+                        </h3>
+                      ),
+                    }}
+                  >
+                    {response.message}
+                  </ReactMarkdown>
+                </div>
               </div>
 
               {/* AI UNDERSTANDING BLOCKS */}
@@ -866,71 +929,60 @@ export default function AgentPage() {
                     No products found matching these exact criteria. Try adjusting budget or category.
                   </div>
                 ) : (
-                  <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3">
+                  <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
                     {response.recommendations.map((product) => {
                       const outOfStock = product.inventory <= 0;
+                      const isBuying = directBuyLoading === product.id;
                       return (
                         <div
                           key={product.id}
-                          className="fintech-card flex flex-col justify-between overflow-hidden transition hover:shadow-md"
+                          className="flex h-full flex-col overflow-hidden rounded-xl border border-[#E5E7EB] bg-white shadow-sm transition hover:shadow-md"
                         >
-                          {/* PRODUCT IMAGE CONTAINER */}
-                          <div className="relative aspect-4/3 w-full border-b border-[#E5E7EB] bg-[#F9FAFB]">
-                            <ProductVisual product={product} />
-                            <span className="absolute top-3 left-3 rounded border border-[#BFDBFE] bg-white/90 px-2 py-0.5 text-[10px] font-bold text-[#1E40AF] backdrop-blur-xs">
+                          {/* Fixed-height image — identical to Direct Checkout cards */}
+                          <div className="relative h-40 w-full shrink-0 border-b border-[#E5E7EB] bg-[#F9FAFB]">
+                            <img
+                              src={
+                                product.image_url ||
+                                PRODUCT_IMAGES[product.id] ||
+                                CATEGORY_FALLBACK_IMAGES[product.category] ||
+                                "https://images.unsplash.com/photo-1526738549149-8e07eca6c147?auto=format&fit=crop&w=600&q=80"
+                              }
+                              alt={product.name}
+                              className="h-full w-full object-cover object-center transition-transform duration-300 hover:scale-105"
+                              loading="lazy"
+                            />
+                            <span className="absolute top-2 left-2 rounded border border-[#BFDBFE] bg-white/90 px-1.5 py-0.5 text-[10px] font-bold text-[#1E40AF]">
                               {product.category}
-                            </span>
-                            <span className="absolute top-3 right-3 font-mono text-[10px] font-medium text-[#6B7280]">
-                              {product.id}
                             </span>
                           </div>
 
-                          {/* PRODUCT CONTENT */}
-                          <div className="flex flex-1 flex-col justify-between p-4">
+                          {/* Content — flex column pushes button to bottom */}
+                          <div className="flex flex-1 flex-col justify-between p-3">
                             <div>
-                              <h4 className="font-heading text-sm font-bold text-[#111827]">{product.name}</h4>
-                              <p className="mt-1 text-xs leading-relaxed text-[#4B5563] line-clamp-2">
+                              <h4 className="text-sm font-bold leading-tight text-[#111827]">{product.name}</h4>
+                              <p className="mt-0.5 text-[11px] leading-snug text-[#6B7280] line-clamp-2">
                                 {product.description}
                               </p>
-
-                              {/* Features */}
-                              <div className="mt-3 flex flex-wrap gap-1.5">
-                                {product.features.slice(0, 2).map((feat) => (
-                                  <span
-                                    key={feat}
-                                    className="rounded border border-[#E5E7EB] bg-[#F9FAFB] px-2 py-0.5 text-[10px] text-[#6B7280]"
-                                  >
-                                    {feat}
-                                  </span>
-                                ))}
-                              </div>
-                            </div>
-
-                            <div className="mt-4 border-t border-[#E5E7EB] pt-3">
-                              <div className="mb-3 flex items-baseline justify-between">
-                                <div>
-                                  <span className="text-[10px] text-[#6B7280]">Price</span>
-                                  <p className="font-mono text-lg font-extrabold text-[#111827]">
-                                    ₹{product.price.toLocaleString("en-IN")}
-                                  </p>
-                                </div>
+                              <div className="mt-2 flex items-baseline justify-between">
+                                <span className="font-mono text-sm font-extrabold text-[#111827]">
+                                  ₹{product.price.toLocaleString("en-IN")}
+                                </span>
                                 <span
-                                  className={`text-[11px] font-semibold ${product.inventory > 0 ? "text-[#047857]" : "text-[#B91C1C]"
-                                    }`}
+                                  className={`text-[11px] font-semibold ${outOfStock ? "text-[#B91C1C]" : "text-[#047857]"}`}
                                 >
-                                  {outOfStock ? "Out of Stock" : `${product.inventory} available`}
+                                  {outOfStock ? "Out of Stock" : `${product.inventory} in stock`}
                                 </span>
                               </div>
-
-                              <button
-                                type="button"
-                                disabled={cartLoading || outOfStock}
-                                onClick={() => handleAddToCart(product)}
-                                className="w-full rounded-lg bg-[#2563EB] py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-[#1D4ED8] disabled:opacity-40"
-                              >
-                                {outOfStock ? "Out of Stock" : cartLoading ? "Adding..." : "+ Add to Cart"}
-                              </button>
                             </div>
+
+                            <button
+                              type="button"
+                              disabled={cartLoading || outOfStock || isBuying}
+                              onClick={() => handleAddToCart(product)}
+                              className="mt-3 w-full rounded-lg bg-[#2563EB] py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-[#1D4ED8] disabled:opacity-40"
+                            >
+                              {outOfStock ? "Out of Stock" : cartLoading ? "Adding..." : "+ Add to Cart"}
+                            </button>
                           </div>
                         </div>
                       );
